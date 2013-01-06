@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory;
 import com.mathworks.toolbox.javabuilder.MWException;
 
 public class MatlabService {
+	static final boolean enableMatlab = false;
 	Logger log = LoggerFactory.getLogger(MatlabService.class);
 
 	Convolution conv;
@@ -17,6 +18,9 @@ public class MatlabService {
 	Distribution dist;
 
 	public MatlabService() {
+		if (!enableMatlab) {
+			return;
+		}
 		try {
 			conv = new Convolution();
 			parConv = new ParallelConvolution();

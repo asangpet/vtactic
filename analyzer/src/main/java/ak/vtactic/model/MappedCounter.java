@@ -7,9 +7,6 @@ import java.util.Set;
 
 import org.vertx.java.core.http.HttpServerRequest;
 
-import ak.vcon.model.Direction;
-import ak.vcon.model.EventInfo;
-import ak.vcon.model.SocketInfo;
 import ak.vtactic.math.DiscreteProbDensity;
 
 public class MappedCounter {

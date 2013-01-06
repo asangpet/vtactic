@@ -9,7 +9,7 @@ import org.springframework.context.annotation.Configuration;
 import ak.vtactic.math.MatlabService;
 
 @Configuration
-@ComponentScan("ak.vcon")
+@ComponentScan("ak.vtactic")
 public class AnalyzerConfig {
 	
 	@Bean

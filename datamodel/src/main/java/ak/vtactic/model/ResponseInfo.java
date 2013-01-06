@@ -1,4 +1,4 @@
-package ak.vcon.model;
+package ak.vtactic.model;
 
 import java.util.Comparator;
 

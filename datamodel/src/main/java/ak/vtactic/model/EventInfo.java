@@ -1,4 +1,4 @@
-package ak.vcon.model;
+package ak.vtactic.model;
 
 import org.bson.types.ObjectId;
 import org.codehaus.jackson.annotate.JsonProperty;

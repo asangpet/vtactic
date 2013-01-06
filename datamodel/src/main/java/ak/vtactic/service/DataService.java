@@ -1,4 +1,4 @@
-package ak.vcon.service;
+package ak.vtactic.service;
 
 import java.util.HashMap;
 import java.util.Iterator;
@@ -8,11 +8,11 @@ import org.jongo.Jongo;
 import org.jongo.MongoCollection;
 import org.springframework.stereotype.Service;
 
-import ak.vcon.model.Direction;
-import ak.vcon.model.EventInfo;
-import ak.vcon.model.NodeEventInfo;
-import ak.vcon.model.ResponseInfo;
-import ak.vcon.model.SocketInfo;
+import ak.vtactic.model.Direction;
+import ak.vtactic.model.EventInfo;
+import ak.vtactic.model.NodeEventInfo;
+import ak.vtactic.model.ResponseInfo;
+import ak.vtactic.model.SocketInfo;
 
 import com.mongodb.Mongo;
 
@@ -89,7 +89,7 @@ public class DataService {
 		return collection.find("{}").sort("{timestamp:1}").as(ResponseInfo.class);
 	}
 	
-	public Iterable<NodeEventInfo> getNodeEvents(final String node, final int basePort, final double from, final double to) {
+	public Iterable<NodeEventInfo> getMatchedNodeEvents(final String node, final int basePort, final double from, final double to) {
 		return new Iterable<NodeEventInfo>() {
 			// Use to identify existing request pair
 			Map<String, NodeEventInfo> existingEvents = new HashMap<String, NodeEventInfo>();
@@ -142,6 +142,47 @@ public class DataService {
 						} else {
 							existingEvents.put(key, nodeEvent);
 						}
+						return nodeEvent;
+					}
+					
+					@Override
+					public void remove() {
+						next();
+						return;
+					}
+				};
+			}
+		};
+	}
+	
+	public Iterable<NodeEventInfo> getNodeEvents(final String node, final double from, final double to) {
+		return new Iterable<NodeEventInfo>() {
+			
+			@Override
+			public Iterator<NodeEventInfo> iterator() {
+				final Iterator<EventInfo> iter = events()
+						.find("{$and:[" +
+								"{'server.address':#}," +
+								"{timestamp:{$lt:#}}," +
+								"{timestamp:{$gt:#}}]}", node, to, from)
+						.sort("{timestamp:1}")
+						.as(EventInfo.class).iterator();
+				return new Iterator<NodeEventInfo>() {
+					@Override
+					public boolean hasNext() {
+						return iter.hasNext();
+					}
+					
+					@Override
+					public NodeEventInfo next() {
+						EventInfo sourceEvent = iter.next();
+						NodeEventInfo nodeEvent = new NodeEventInfo()
+							.setContent(sourceEvent.getRequest())
+							.setTimestamp(sourceEvent.getTimestamp())
+							.setHost(sourceEvent.getTracker())
+							.setRemote(sourceEvent.getClient())
+							.setLocal(sourceEvent.getServer())
+							.setDirection(sourceEvent.getType());
 						return nodeEvent;
 					}
 					

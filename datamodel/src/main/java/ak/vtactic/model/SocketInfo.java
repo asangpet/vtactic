@@ -1,4 +1,4 @@
-package ak.vcon.model;
+package ak.vtactic.model;
 
 public class SocketInfo {
 	private String address;
@@ -35,5 +35,10 @@ public class SocketInfo {
 		} else {
 			return false;
 		}
+	}
+	
+	@Override
+	public int hashCode() {
+		return address.hashCode()*37+port*13;
 	}
 }

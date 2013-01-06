@@ -3,7 +3,7 @@ package ak.vtactic.analyzer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-import ak.vcon.model.ResponseInfo;
+import ak.vtactic.model.ResponseInfo;
 
 public class MarkerFilterIterable<T extends ResponseInfo> implements Iterable<T> {
 	final Iterable<T> source;

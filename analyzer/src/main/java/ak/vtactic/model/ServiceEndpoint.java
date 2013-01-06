@@ -1,8 +1,5 @@
 package ak.vtactic.model;
 
-import ak.vcon.model.EventInfo;
-import ak.vcon.model.SocketInfo;
-
 public class ServiceEndpoint {
 	String address;
 	String request;

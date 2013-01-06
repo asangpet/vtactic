@@ -1,10 +1,10 @@
-package ak.vtactic.analyzer;
+package ak.vtactic.collector;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import ak.vcon.model.NodeEventInfo;
 import ak.vtactic.math.DiscreteProbDensity;
+import ak.vtactic.model.NodeEventInfo;
 
 public class ResponseCollector {
 	Map<String, DiscreteProbDensity> nodeResponse = new HashMap<>();

@@ -5,7 +5,6 @@ import java.util.Map;
 
 import org.vertx.java.core.http.HttpServerRequest;
 
-import ak.vcon.model.ResponseInfo;
 import ak.vtactic.math.DiscreteProbDensity;
 
 public class ResponseCounter {

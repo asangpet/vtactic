@@ -17,12 +17,12 @@ import org.vertx.java.core.http.HttpServer;
 import org.vertx.java.core.http.HttpServerRequest;
 import org.vertx.java.core.http.RouteMatcher;
 
-import ak.vcon.model.Direction;
-import ak.vcon.model.EventInfo;
-import ak.vcon.model.ResponseInfo;
-import ak.vcon.service.DataService;
+import ak.vtactic.model.Direction;
 import ak.vtactic.model.EventCounter;
+import ak.vtactic.model.EventInfo;
 import ak.vtactic.model.ResponseCounter;
+import ak.vtactic.model.ResponseInfo;
+import ak.vtactic.service.DataService;
 
 public class AnalyzerSimpleVert {
 	private static final Logger log = LoggerFactory.getLogger(AnalyzerSimpleVert.class);

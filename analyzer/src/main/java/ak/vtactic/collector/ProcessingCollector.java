@@ -1,12 +1,12 @@
-package ak.vtactic.analyzer;
+package ak.vtactic.collector;
 
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Queue;
 
-import ak.vcon.model.NodeEventInfo;
 import ak.vtactic.math.DiscreteProbDensity;
+import ak.vtactic.model.NodeEventInfo;
 
 public class ProcessingCollector {
 	Map<String, Queue<Double>> nodeResponse = new HashMap<>();

@@ -1,4 +1,4 @@
-package ak.vcon.model;
+package ak.vtactic.model;
 
 public enum Direction {
 	IN, OUT;

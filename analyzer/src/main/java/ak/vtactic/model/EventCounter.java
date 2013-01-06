@@ -12,8 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.vertx.java.core.http.HttpServerRequest;
 
-import ak.vcon.model.Direction;
-import ak.vcon.model.EventInfo;
 import ak.vtactic.math.DiscreteProbDensity;
 
 public class EventCounter {

@@ -10,9 +10,9 @@ import org.vertx.java.core.Handler;
 import org.vertx.java.core.http.HttpServerRequest;
 import org.vertx.java.core.http.RouteMatcher;
 
-import ak.vcon.model.ResponseInfo;
-import ak.vcon.service.DataService;
+import ak.vtactic.model.ResponseInfo;
 import ak.vtactic.model.RunMarker;
+import ak.vtactic.service.DataService;
 
 @Component
 public class AnalyzerTool {
@@ -143,7 +143,7 @@ public class AnalyzerTool {
 					.as(ResponseInfo.class);			
 		}
 
-		return new MarkerFilterIterable<>(source);
+		return new MarkerFilterIterable<ResponseInfo>(source);
 	}
 	
 	public Iterable<String> getDistinctPath(final double startTime, final Double endTime) {

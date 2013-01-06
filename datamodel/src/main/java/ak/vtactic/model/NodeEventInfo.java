@@ -1,4 +1,4 @@
-package ak.vcon.model;
+package ak.vtactic.model;
 
 
 public class NodeEventInfo {
@@ -93,5 +93,10 @@ public class NodeEventInfo {
 		} else {
 			return pair.content;
 		}
+	}
+	
+	@Override
+	public String toString() {
+		return new StringBuilder().append("NodeEventInfo:").append(remote.getAddress()).append(":").append(remote.getPort()).append("@").append(timestamp).toString();
 	}
 }

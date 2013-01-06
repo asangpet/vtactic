@@ -22,18 +22,20 @@ import org.vertx.java.core.http.HttpServer;
 import org.vertx.java.core.http.HttpServerRequest;
 import org.vertx.java.core.http.RouteMatcher;
 
-import ak.vcon.model.Direction;
-import ak.vcon.model.EventInfo;
-import ak.vcon.model.ResponseInfo;
-import ak.vcon.model.SocketInfo;
-import ak.vcon.service.DataService;
+import ak.vtactic.collector.RequestExtractor;
 import ak.vtactic.config.AnalyzerConfig;
 import ak.vtactic.math.DiscreteProbDensity;
 import ak.vtactic.math.MathService;
+import ak.vtactic.model.Direction;
 import ak.vtactic.model.EventCounter;
+import ak.vtactic.model.EventInfo;
 import ak.vtactic.model.MappedCounter;
 import ak.vtactic.model.ResponseCounter;
+import ak.vtactic.model.ResponseInfo;
+import ak.vtactic.model.SocketInfo;
 import ak.vtactic.model.UtilizationInfo;
+import ak.vtactic.primitives.Expression;
+import ak.vtactic.service.DataService;
 
 @Component
 public class AnalyzerVert {
@@ -403,6 +405,93 @@ public class AnalyzerVert {
 				DiscreteProbDensity est = DiscreteProbDensity.distribute(new double[] { d1.getRawCount()/total, d2.getRawCount()/total},  new DiscreteProbDensity[] {d1,d2});
 				normalized.put("Estimate", est);
 				PrettyPrinter.printResponse(req, "resp", normalized.entrySet());
+				req.response.end();
+			}
+    	});
+    	
+    	routeMatcher.all("/analyze/dependencies",new Handler<HttpServerRequest>() {    		
+			@Override
+			public void handle(final HttpServerRequest req) {
+				req.response.setChunked(true);
+				RequestExtractor extractor = dependencyTool.extract("10.4.20.1", 80, 1357360213416.915, 1357416207817.871);
+				StringBuilder sb = new StringBuilder();
+				Expression expression = extractor.getExpression();
+				expression.print(sb);
+				req.response.write(sb.toString());
+				req.response.write("\n\n");
+				Map<String, DiscreteProbDensity> normalized = dependencyTool.collectResponse("10.4.20.1", 80, 1357360213416.915, 1357416207817.871);
+				normalized.put("Estimate",expression.eval(normalized));
+
+				/*
+				DiscreteProbDensity d1 = normalized.get("10.4.20.2");
+				DiscreteProbDensity d2 = normalized.get("10.4.20.3");
+				double total = d1.getRawCount() + d2.getRawCount();
+				DiscreteProbDensity est = DiscreteProbDensity.distribute(new double[] { d1.getRawCount()/total, d2.getRawCount()/total},  new DiscreteProbDensity[] {d1,d2});
+				normalized.put("Estimate", est);
+				*/
+				PrettyPrinter.printResponse(req, "r", normalized.entrySet());
+				req.response.end();
+			}
+    	});
+
+    	routeMatcher.all("/analyze/processing/pair",new Handler<HttpServerRequest>() {    		
+			@Override
+			public void handle(final HttpServerRequest req) {
+				req.response.setChunked(true);
+				Map<String, DiscreteProbDensity> compA = dependencyTool.collectResponse("10.4.20.1", 80,  1357416207818.402, 1357430913946.345);
+				Map<String, DiscreteProbDensity> compB = dependencyTool.collectResponse("10.4.20.2", 80,  1357416207818.402, 1357430913946.345);
+				for (Map.Entry<String, DiscreteProbDensity> entry : compB.entrySet()) {
+					compA.put("b_"+entry.getKey(), entry.getValue());
+				}
+				PrettyPrinter.printResponse(req, "r", compA.entrySet());
+				req.response.end();
+			}
+    	});
+    	
+    	routeMatcher.all("/analyze/processing/single",new Handler<HttpServerRequest>() {
+    		private DiscreteProbDensity nconv(int co, DiscreteProbDensity arrivalProb, DiscreteProbDensity processing) {
+    			DiscreteProbDensity result = new DiscreteProbDensity(processing);
+    			for (int x=0;x<result.getPdf().length;x++) {
+    				double sum = 0;
+    				for (int k=0;k<x;k++) {
+    					sum += arrivalProb.getPdf()[k] * processing.getPdf()[(x+k)/co];
+    				}
+    				result.getPdf()[x] = sum;
+    			}
+    			return result;
+    		}
+    		
+    		private DiscreteProbDensity expPdf(double lambda) {
+    			DiscreteProbDensity result = new DiscreteProbDensity();
+    			for (int i = 0; i < result.getPdf().length; i++) {
+    				result.getPdf()[i] = lambda*Math.exp(-lambda*i);
+    			}
+    			return result;
+    		}
+    		
+    		private double poisson(double k, double lambda) {
+    			double result = Math.exp(-lambda);
+    			for (int i=1;i<=k;i++) {
+    				result = result * lambda / i;
+    			}
+    			return result;
+    		}
+    		
+			@Override
+			public void handle(final HttpServerRequest req) {
+				req.response.setChunked(true);
+				Map<String, DiscreteProbDensity> compA = dependencyTool.collectResponse("10.4.20.1", 80,  1357431192259.329, 2357430913946.345);
+				
+				DiscreteProbDensity aPdf = compA.get("10.1.1.9");
+				double lambda = 200.0/500; // occurrence * period / interarrival
+				DiscreteProbDensity dPdf = expPdf(lambda);				
+				DiscreteProbDensity nConv = nconv(2, dPdf, aPdf).normalize();	
+				compA.put("nconv", nConv);
+				compA.put("ndist", DiscreteProbDensity.distribute(new double[] { poisson(0,lambda), 1-poisson(0,lambda) }, 
+						new DiscreteProbDensity[] {aPdf, nConv}));
+				
+				PrettyPrinter.printResponse(req, "r", compA.entrySet());
+				
 				req.response.end();
 			}
     	});
