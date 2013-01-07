@@ -422,6 +422,27 @@ public class DiscreteProbDensity {
 		buffer.append("]");
 		return buffer;
 	}
+	
+	/**
+	 * Skewed convolution, we find the probability that a request will takes x,
+	 * given there are n co-arrivals between the period of 0 to x.
+	 * 
+	 * @param n
+	 * @param arrivalProb
+	 * @param processing
+	 * @return
+	 */
+	public static DiscreteProbDensity coConv(int n, DiscreteProbDensity arrivalProb, DiscreteProbDensity processing) {
+		DiscreteProbDensity result = new DiscreteProbDensity(processing);
+		for (int x=0;x<result.getPdf().length;x++) {
+			double sum = 0;
+			for (int k=0;k<x;k++) {
+				sum += arrivalProb.pdf[k] * processing.pdf[(x+k)/n];
+			}
+			result.pdf[x] = sum;
+		}
+		return result;
+	}
 
 	public DiscreteProbDensity ensurePositive() {
 		double sum = 0.0;
@@ -626,7 +647,86 @@ public class DiscreteProbDensity {
 		}
 		return result;
 	}
+	
+	public static DiscreteProbDensity lucyDeconv(DiscreteProbDensity blur, DiscreteProbDensity psf) {
+		DiscreteProbDensity result = new DiscreteProbDensity(blur);
+		// get uniform initial
+		for (int i=0;i<result.pdf.length;i++) {
+			result.pdf[i] = 1.0/result.pdf.length;
+			//result.pdf[i] = psf.pdf[i];
+		}
+		
+		System.out.println("figure;hold on;");
 
+		for (int iter=0;iter<9;iter++) {
+			// For each iteration;
+			// f_i+1(t) = { [blur(t)/(f_i(t)*psf(t))] * psf(-t) } x f_i(t) 
+			
+			// find the inner deconvolution D; blur(t)/(f_i(t)*psf(t))
+			double[] div = new double[result.pdf.length];
+			for (int x=0;x<result.pdf.length;x++) {
+				double sum = 0;
+				for (int k=0;k<result.pdf.length;k++) {
+					if (x-k < 0) {
+						break;
+					}
+					sum += psf.pdf[k]*result.pdf[x-k];
+				}
+				if (sum == 0) {
+					sum = 1.0;
+				}
+				div[x] = blur.pdf[x] / sum;
+			}
+			// find the outer cross correlation xcorr(psf,D) and update the iteration
+			for (int x=0;x<result.pdf.length;x++) {
+				double sum = 0;
+				for (int k=0;k<result.pdf.length;k++) {
+					if (x+k >= result.pdf.length) {
+						break;
+					}
+					sum += div[x+k]*psf.pdf[k];
+				}
+				result.pdf[x] = result.pdf[x]*sum;
+			}
+			
+			System.out.print("iter_"+iter+"=");
+			
+			result.print();
+			System.out.println("plot(iter_"+iter+")");
+		}
+		return result;
+	}
+	
+	public DiscreteProbDensity normalDist(double mean, double std) {
+		DiscreteProbDensity result = new DiscreteProbDensity();
+		double x;
+		for (int i=0;i<result.pdf.length;i++) {
+			x = i*interval;
+			result.pdf[i] = Math.exp(-(x-mean)*(x-mean)/(2*std*std))/(std*Math.sqrt(2.0*Math.PI));
+		}
+		return result;
+	}
+	
+	public static DiscreteProbDensity piecewiseDivide(DiscreteProbDensity a, DiscreteProbDensity b) {
+		DiscreteProbDensity result = new DiscreteProbDensity(a);
+		for (int i=0;i<result.pdf.length;i++) {
+			if (b.pdf[i] == 0) {
+				result.pdf[i] = a.pdf[i];
+			} else {
+				result.pdf[i] = a.pdf[i] / b.pdf[i];
+			}
+		}
+		return result;
+	}
+
+	public static DiscreteProbDensity piecewiseMultiply(DiscreteProbDensity a, DiscreteProbDensity b) {
+		DiscreteProbDensity result = new DiscreteProbDensity(a);
+		for (int i=0;i<result.pdf.length;i++) {
+			result.pdf[i] = a.pdf[i] * b.pdf[i];
+		}
+		return result;
+	}
+	
 	public double[] generateRaw() {
 		int sampleCount = 1000;
 		List<Double> samples = new LinkedList<Double>();
@@ -697,6 +797,14 @@ public class DiscreteProbDensity {
 
 	static double[] guess;
 	public static void main(String[] args) {
+		DiscreteProbDensity a = new DiscreteProbDensity().normalDist(1000, 100);
+		DiscreteProbDensity b = new DiscreteProbDensity().normalDist(1500, 100);
+		DiscreteProbDensity c = new DiscreteProbDensity().normalDist(1300, 100);
+		DiscreteProbDensity d = new DiscreteProbDensity().normalDist(1800, 100);
+		
+		DiscreteProbDensity mix1 = DiscreteProbDensity.distribute(new double[] {0.5, 0.5}, new DiscreteProbDensity[] {a,b});
+		DiscreteProbDensity mix2 = DiscreteProbDensity.distribute(new double[] {0.5, 0.5}, new DiscreteProbDensity[] {c,d});
+		lucyDeconv(mix2, mix1);
 		/*
 		DiscreteProbDensity dpd = new DiscreteProbDensity(10, 0, 100, 0);
 		dpd.add(10);

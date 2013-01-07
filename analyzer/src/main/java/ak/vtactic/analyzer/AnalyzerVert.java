@@ -366,6 +366,22 @@ public class AnalyzerVert {
 			}
     	});
     	
+    	routeMatcher.all("/analyze",new Handler<HttpServerRequest>() {    		
+			@Override
+			public void handle(final HttpServerRequest req) {
+				req.response.setChunked(true);
+				req.response.write("<html><body><table>");
+				Iterable<EventInfo> markers = dataService.events().find("{request:{$regex:'start'}}").sort("{timestamp:-1}").as(EventInfo.class);
+				for (EventInfo marker : markers) {
+					req.response.write("<tr><td>"+marker.getTimestamp()+"</td><td>"+marker.getRequest()+"</td>");
+					EventInfo reply = dataService.events().findOne("{timestamp:{$gt:#}}",marker.getTimestamp()).as(EventInfo.class);
+					req.response.write("<td>"+reply.getRequest()+"</td><td>"+reply.getTimestamp()+"</td></tr>");
+				}
+				req.response.write("</table></html></body>");
+				req.response.end();
+			}
+    	});
+    	
     	routeMatcher.all("/analyze/composite",new Handler<HttpServerRequest>() {    		
 			@Override
 			public void handle(final HttpServerRequest req) {
@@ -449,17 +465,6 @@ public class AnalyzerVert {
     	});
     	
     	routeMatcher.all("/analyze/processing/single",new Handler<HttpServerRequest>() {
-    		private DiscreteProbDensity nconv(int co, DiscreteProbDensity arrivalProb, DiscreteProbDensity processing) {
-    			DiscreteProbDensity result = new DiscreteProbDensity(processing);
-    			for (int x=0;x<result.getPdf().length;x++) {
-    				double sum = 0;
-    				for (int k=0;k<x;k++) {
-    					sum += arrivalProb.getPdf()[k] * processing.getPdf()[(x+k)/co];
-    				}
-    				result.getPdf()[x] = sum;
-    			}
-    			return result;
-    		}
     		
     		private DiscreteProbDensity expPdf(double lambda) {
     			DiscreteProbDensity result = new DiscreteProbDensity();
@@ -477,18 +482,49 @@ public class AnalyzerVert {
     			return result;
     		}
     		
+    		/**
+    		 * Find distribution of processing time, based on the non-contended processing time (aPdf)
+    		 * and the probability of having co-arrival request at a point in time t (dPdf) - approximate by inter-arrival
+    		 * 
+    		 * The co-arrival probability is calculated based on the mean interarrival (period)
+    		 * ideal processing time (processing) and rate of arrival within the period
+    		 * 
+    		 * @param rate
+    		 * @param processing
+    		 * @param period
+    		 * @param aPdf
+    		 * @param dPdf
+    		 * @return
+    		 */
+    		DiscreteProbDensity findNdistP(double rate, double processing, double period, DiscreteProbDensity aPdf, DiscreteProbDensity dPdf) {
+    			double lambda = 2*rate*processing / period;
+				int degree = 5;
+				DiscreteProbDensity[] nConv = new DiscreteProbDensity[degree];
+				double[] coeff = new double[degree];
+				coeff[0] = poisson(0,lambda);
+				nConv[0] = aPdf;
+				double sum = coeff[0];						
+				for (int i=1;i<degree;i++) {
+					nConv[i] = DiscreteProbDensity.coConv(i+1,dPdf,aPdf).normalize();
+					coeff[i] = poisson(i,lambda);
+					if (i<degree-1) {
+						sum+=coeff[i];
+					}
+				}
+				coeff[degree-1] = 1-sum;
+				DiscreteProbDensity ndistP = DiscreteProbDensity.distribute(coeff, nConv);
+				return ndistP;
+    		}
+    		
 			@Override
 			public void handle(final HttpServerRequest req) {
 				req.response.setChunked(true);
 				Map<String, DiscreteProbDensity> compA = dependencyTool.collectResponse("10.4.20.1", 80,  1357431192259.329, 2357430913946.345);
 				
 				DiscreteProbDensity aPdf = compA.get("10.1.1.9");
-				double lambda = 200.0/500; // occurrence * period / interarrival
-				DiscreteProbDensity dPdf = expPdf(lambda);				
-				DiscreteProbDensity nConv = nconv(2, dPdf, aPdf).normalize();	
-				compA.put("nconv", nConv);
-				compA.put("ndist", DiscreteProbDensity.distribute(new double[] { poisson(0,lambda), 1-poisson(0,lambda) }, 
-						new DiscreteProbDensity[] {aPdf, nConv}));
+				double lambda = 1.0/500;
+				DiscreteProbDensity dPdf = expPdf(lambda);
+				compA.put("ndist", findNdistP(1.0, 100.0, 500.0, aPdf, dPdf));
 				
 				PrettyPrinter.printResponse(req, "r", compA.entrySet());
 				
