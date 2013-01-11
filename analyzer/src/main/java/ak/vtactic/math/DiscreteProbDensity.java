@@ -409,6 +409,15 @@ public class DiscreteProbDensity {
 		System.out.println("];");
 	}
 	
+	public void printBuilder(StringBuilder builder) {
+		builder.append("[");
+		for (int i=0;i<pdf.length;i++) {
+			//System.out.println((min+i*interval)+":"+pdf[i]);
+			builder.append(pdf[i]+" ");
+		}
+		builder.append("];");
+	}
+	
 	public StringBuffer printBuffer() {
 		StringBuffer buffer = new StringBuffer();
 		buffer.append("[");
@@ -648,6 +657,7 @@ public class DiscreteProbDensity {
 		return result;
 	}
 	
+	static boolean doIntermediatePlot = false;
 	public static DiscreteProbDensity lucyDeconv(DiscreteProbDensity blur, DiscreteProbDensity psf) {
 		DiscreteProbDensity result = new DiscreteProbDensity(blur);
 		// get uniform initial
@@ -655,10 +665,14 @@ public class DiscreteProbDensity {
 			result.pdf[i] = 1.0/result.pdf.length;
 			//result.pdf[i] = psf.pdf[i];
 		}
+		result = result.normalize();
 		
-		System.out.println("figure;hold on;");
+		StringBuilder builder = new StringBuilder();
+		if (doIntermediatePlot) {
+			builder.append("figure;hold on;");
+		}
 
-		for (int iter=0;iter<9;iter++) {
+		for (int iter=0;iter<10;iter++) {
 			// For each iteration;
 			// f_i+1(t) = { [blur(t)/(f_i(t)*psf(t))] * psf(-t) } x f_i(t) 
 			
@@ -689,10 +703,11 @@ public class DiscreteProbDensity {
 				result.pdf[x] = result.pdf[x]*sum;
 			}
 			
-			System.out.print("iter_"+iter+"=");
-			
-			result.print();
-			System.out.println("plot(iter_"+iter+")");
+			if (doIntermediatePlot) {
+				builder.append("iter_"+iter+"=");
+				result.printBuilder(builder);
+				builder.append("\nplot(iter_"+iter+");\n");
+			}
 		}
 		return result;
 	}

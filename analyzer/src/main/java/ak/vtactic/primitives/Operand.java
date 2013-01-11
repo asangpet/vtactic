@@ -26,6 +26,8 @@ public class Operand implements Expression {
 		case "10.4.20.3":return "C";
 		case "10.4.20.4":return "D";
 		case "10.4.20.5":return "E";
+		case "10.4.20.6":return "F";
+		case "10.4.20.7":return "G";
 		}
 		return operand;
 	}

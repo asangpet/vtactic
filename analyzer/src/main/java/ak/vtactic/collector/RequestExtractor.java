@@ -70,8 +70,13 @@ public class RequestExtractor {
 		return minQuery;
 	}
 	
+	int idCount = 0;
 	public void emit(Associations toll) {
 		if (toll.queries().isEmpty()) {
+			idCount++;
+			if (idCount % 1000 == 0) {
+				logger.warn("Independent request {} {}",toll.getRequestTime(),idCount);
+			}
 			return;
 		}
 		Expression expression = deriveExpression(toll.queries());
@@ -131,15 +136,15 @@ public class RequestExtractor {
 					Collection<NodeEventInfo> futureEvents = toll.prune(event.getTimestamp());
 					if (!priorities.isEmpty()) {
 						Associations next = priorities.firstKey();
-						if (next != null) {
-							for (NodeEventInfo future : futureEvents) {
-								if (next.getRequestTime() < future.getTimestamp()) {
-									next.addQuery(future.getRemote(), future);
-								} else {
-									logger.warn("Dropped event {}", future);
-								}
+						for (NodeEventInfo future : futureEvents) {
+							if (next.getRequestTime() < future.getTimestamp()) {
+								next.addQuery(future.getRemote(), future);
+							} else {
+								logger.warn("Dropped event {}", future);
 							}
 						}
+					} else if (!futureEvents.isEmpty()) {
+						logger.warn("Dropped {} events", futureEvents.size());
 					}
 					
 					emit(toll);
@@ -149,21 +154,29 @@ public class RequestExtractor {
 			// This is dependency calls, we should associate the call with the request to find lag time
 			if (event.getDirection() == Direction.OUT) {
 				SocketInfo target = event.getRemote();
+				//logger.info("Prior info {}",priorities.size());
+				//ArrayList<Associations> reverse = new ArrayList<Associations>();
+				//reverse.addAll(priorities.keySet());
+				
 				for (Associations toll : priorities.keySet()) {
+				//for (int i=reverse.size()-1;i>=0;i--) {
+					//Associations toll = reverse.get(i);
 					if (toll.exist(target)) {
 						// request already associated, use another parent
 						continue;
 					}
 					toll.addQuery(target, event);
-					break;
+					return;
 				}
+				logger.warn("Orphaned event {}",event);
 			} else {
 				// This is returned dependency call, associate it with existing queries
 				for (Associations toll : priorities.keySet()) {
 					if (toll.associate(event)) {
-						break;
+						return;
 					}
 				}
+				logger.warn("Orphaned event, cannot match association {}",event);
 			}
 		}
 	}

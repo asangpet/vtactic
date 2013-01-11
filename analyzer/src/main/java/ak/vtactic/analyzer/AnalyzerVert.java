@@ -5,6 +5,7 @@ import java.net.URI;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.TreeMap;
 
 import org.apache.log4j.BasicConfigurator;
 import org.codehaus.jackson.JsonGenerationException;
@@ -12,6 +13,7 @@ import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.BeanFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.stereotype.Component;
@@ -35,6 +37,7 @@ import ak.vtactic.model.ResponseInfo;
 import ak.vtactic.model.SocketInfo;
 import ak.vtactic.model.UtilizationInfo;
 import ak.vtactic.primitives.Expression;
+import ak.vtactic.primitives.ComponentNode;
 import ak.vtactic.service.DataService;
 
 @Component
@@ -44,6 +47,9 @@ public class AnalyzerVert {
 	Vertx vertx;
 	EventBus eventBus;
 	URI id;
+	
+	@Autowired
+	BeanFactory factory;
 	
 	@Autowired
 	ObjectMapper mapper;
@@ -449,7 +455,80 @@ public class AnalyzerVert {
 				req.response.end();
 			}
     	});
+    	
+    	routeMatcher.all("/analyze/placement",new Handler<HttpServerRequest>() {    		
+			@Override
+			public void handle(final HttpServerRequest req) {
+				req.response.setChunked(true);
+				Map<String, DiscreteProbDensity> result = new TreeMap<String, DiscreteProbDensity>();
+				
+				RequestExtractor extractor = dependencyTool.extract("10.4.20.1", 80, 1357853539188.614,  1357869061784.727);
+				StringBuilder sb = new StringBuilder();
+				Expression expression = extractor.getExpression();
+				expression.print(sb);
+				req.response.write(sb.toString());
+				req.response.write("\n\n");
+				Map<String, DiscreteProbDensity> normalized = dependencyTool.collectResponse("10.4.20.1", 80, 1357853539188.614,  1357869061784.727);
+				DiscreteProbDensity subSystem = expression.eval(normalized);
+				DiscreteProbDensity processing = DiscreteProbDensity.lucyDeconv(normalized.get("10.4.20.1"), subSystem);
+				/*
+				Node[] nodes = new Node[3];
+				 
+				
+				Map<String, DiscreteProbDensity> resp;
+				nodes[0] = factory.getBean(Node.class);
+				resp = nodes[0].host("10.4.20.2").port(80).findModel("10.4.20.1", 1357853539188.614,  1357869061784.727);
+				result.put("Measured B", nodes[0].getMeasuredResponse());
+				result.put("Estimate B", nodes[0].estimate(resp));
+				
+				nodes[1] = factory.getBean(Node.class);				
+				resp = nodes[1].host("10.4.20.3").port(80).findModel("10.4.20.1", 1357853539188.614,  1357869061784.727);
+				result.put("Measured C", nodes[1].getMeasuredResponse());
+				result.put("Estimate C", nodes[1].estimate(resp));
+				
+				nodes[2] = factory.getBean(Node.class);
+				resp = nodes[2].host("10.4.20.1").port(80).findModel("10.1.1.9", 1357853539188.614,  1357869061784.727);
+				result.put("Measured A", nodes[2].getMeasuredResponse());
+				resp.put("10.4.20.2", result.get("Estimate B"));
+				resp.put("10.4.20.3", result.get("Estimate C"));
+				result.put("Estimate A", nodes[2].estimate(resp));
+				*/
+				
+				PrettyPrinter.printResponse(req, "r", result.entrySet());
+				req.response.end();
+			}
+    	});    	
 
+    	routeMatcher.all("/analyze/stackplacement",new Handler<HttpServerRequest>() {    		
+			@Override
+			public void handle(final HttpServerRequest req) {
+				req.response.setChunked(true);
+				Map<String, DiscreteProbDensity> result = new TreeMap<String, DiscreteProbDensity>();				
+				ComponentNode[] nodes = new ComponentNode[3];
+				
+				Map<String, DiscreteProbDensity> resp;
+				nodes[0] = factory.getBean(ComponentNode.class);
+				resp = nodes[0].host("10.4.20.2").port(80).findModel("10.4.20.1", 1.357872788771123E12, Double.MAX_VALUE);
+				result.put("Measured B", nodes[0].getMeasuredResponse());
+				result.put("Estimate B", nodes[0].estimate(resp));
+				
+				nodes[1] = factory.getBean(ComponentNode.class);				
+				resp = nodes[1].host("10.4.20.3").port(80).findModel("10.4.20.1", 1.357872788771123E12, Double.MAX_VALUE);
+				result.put("Measured C", nodes[1].getMeasuredResponse());
+				result.put("Estimate C", nodes[1].estimate(resp));
+				
+				nodes[2] = factory.getBean(ComponentNode.class);
+				resp = nodes[2].host("10.4.20.1").port(80).findModel("10.1.1.9", 1.357872788771123E12, Double.MAX_VALUE);
+				result.put("Measured A", nodes[2].getMeasuredResponse());
+				resp.put("10.4.20.2", result.get("Estimate B"));
+				resp.put("10.4.20.3", result.get("Estimate C"));
+				result.put("Estimate A", nodes[2].estimate(resp));
+				
+				PrettyPrinter.printResponse(req, "r", result.entrySet());
+				req.response.end();
+			}
+    	});
+    	
     	routeMatcher.all("/analyze/processing/pair",new Handler<HttpServerRequest>() {    		
 			@Override
 			public void handle(final HttpServerRequest req) {
@@ -519,7 +598,7 @@ public class AnalyzerVert {
 			@Override
 			public void handle(final HttpServerRequest req) {
 				req.response.setChunked(true);
-				Map<String, DiscreteProbDensity> compA = dependencyTool.collectResponse("10.4.20.1", 80,  1357431192259.329, 2357430913946.345);
+				Map<String, DiscreteProbDensity> compA = dependencyTool.collectResponse("10.4.20.1", 80,  1357431192259.329,  1357436294984.014);
 				
 				DiscreteProbDensity aPdf = compA.get("10.1.1.9");
 				double lambda = 1.0/500;

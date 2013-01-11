@@ -3,6 +3,8 @@ package ak.vtactic.analyzer;
 import java.util.Map;
 import java.util.TreeMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
@@ -15,6 +17,8 @@ import ak.vtactic.service.DataService;
 
 @Component
 public class DependencyTool {
+	private static final Logger logger = LoggerFactory.getLogger(DependencyTool.class);
+	
 	@Autowired
 	DataService dataService;
 	
@@ -65,15 +69,11 @@ public class DependencyTool {
 		RequestExtractor collector = new RequestExtractor(basePort);
 		int count = 0;
 		for (NodeEventInfo event : events) {
-			/*
-			if (event.isReply()) {
-				count++;
-			}
-			if (count > 500 && count <9500) {
-			*/
-				collector.collect(event);
-			//}
+			collector.collect(event);
+			count++;
 		}
+		logger.info("Processed {} events",count);
+		
 		return collector;
 	}
 

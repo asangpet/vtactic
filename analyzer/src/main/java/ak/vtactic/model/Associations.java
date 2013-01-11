@@ -25,6 +25,14 @@ public class Associations implements Comparable<Associations> {
 		this.pairRequest = ev.getContent();
 		this.pairSocket = ev.getRemote();
 	}
+	
+	public String getPairRequest() {
+		return pairRequest;
+	}
+	
+	public SocketInfo getPairSocket() {
+		return pairSocket;
+	}
 
 	@Override
 	public int compareTo(Associations o) {
