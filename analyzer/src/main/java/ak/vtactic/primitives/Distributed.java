@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.TreeSet;
 
 import ak.vtactic.math.DiscreteProbDensity;
-import ak.vtactic.model.Pair;
+import ak.vtactic.util.Pair;
 
 public class Distributed implements Expression {
 	private final TreeSet<Pair<Expression,Double>> terms;
@@ -69,6 +69,11 @@ public class Distributed implements Expression {
 			}
 		}
 		return builder;
+	}
+	
+	@Override
+	public String toString() {
+		return prettyPrint(new StringBuilder()).toString();
 	}
 	
 	@Override

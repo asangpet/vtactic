@@ -674,7 +674,8 @@ public class DiscreteProbDensity {
 
 		for (int iter=0;iter<10;iter++) {
 			// For each iteration;
-			// f_i+1(t) = { [blur(t)/(f_i(t)*psf(t))] * psf(-t) } x f_i(t) 
+			// f_i+1(t) = { [blur(t)/(f_i(t)*psf(t))] * psf(-t) } x f_i(t)
+			// * is convolution, x = pointwise multiplication, *psf(-t) = cross-correlation
 			
 			// find the inner deconvolution D; blur(t)/(f_i(t)*psf(t))
 			double[] div = new double[result.pdf.length];

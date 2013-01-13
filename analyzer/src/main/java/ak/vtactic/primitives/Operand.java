@@ -37,4 +37,9 @@ public class Operand implements Expression {
 			Map<String, DiscreteProbDensity> bind) {
 		return bind.get(operand);
 	}
+	
+	@Override
+	public String toString() {
+		return translate(operand);
+	}
 }

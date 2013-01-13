@@ -26,13 +26,13 @@ public class DependencyTool {
 		Iterable<NodeEventInfo> events = dataService.getMatchedNodeEvents(node, basePort, start, stop);
 		ResponseCollector collector = new ResponseCollector();
 		int count = 0;
-		for (NodeEventInfo event : events) {
+		for (NodeEventInfo event : events) {			
 			if (event.isReply()) {
 				count++;
 			}
-			if (count > 500 && count <9500) {
+			//if (count > 500 && count <9500) {			
 				collector.collect(event);
-			}
+			//}
 		}
 		
 		// normalized results
@@ -51,9 +51,9 @@ public class DependencyTool {
 			if (event.isReply()) {
 				count++;
 			}
-			if (count > 500 && count <9500) {
+			//if (count > 500 && count <9500) {
 				collector.collect(event);
-			}
+			//}
 		}
 		
 		// normalized results

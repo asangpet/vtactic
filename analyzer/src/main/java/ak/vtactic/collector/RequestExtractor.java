@@ -4,9 +4,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,22 +14,23 @@ import org.slf4j.LoggerFactory;
 import ak.vtactic.model.Associations;
 import ak.vtactic.model.Direction;
 import ak.vtactic.model.NodeEventInfo;
-import ak.vtactic.model.Pair;
 import ak.vtactic.model.SocketInfo;
 import ak.vtactic.primitives.Composite;
 import ak.vtactic.primitives.Concurrent;
 import ak.vtactic.primitives.Distributed;
 import ak.vtactic.primitives.Expression;
 import ak.vtactic.primitives.Operand;
+import ak.vtactic.util.GenericTreeBidiMap;
+import ak.vtactic.util.OrderedBiMap;
+import ak.vtactic.util.Pair;
 
 public class RequestExtractor {
 	private static final Logger logger = LoggerFactory.getLogger(RequestExtractor.class);
 	
-	Map<SocketInfo, Associations> associations = new HashMap<>();
-	TreeMap<Associations, SocketInfo> priorities = new TreeMap<>();
-	Map<String, Long> termCounts = new HashMap<>();
+	OrderedBiMap<Associations, SocketInfo> priorities = new GenericTreeBidiMap<>();
+	Map<String, Double> termCounts = new HashMap<>();
 	Map<String, Expression> termExpressions = new HashMap<>();
-	long sum = 0;
+	double sum = 0;
 	
 	final int basePort;
 	
@@ -71,26 +72,41 @@ public class RequestExtractor {
 	}
 	
 	int idCount = 0;
+	LinkedList<Associations> prevTolls = new LinkedList<Associations>();
 	public void emit(Associations toll) {
+		prevTolls.add(toll);
+		if (prevTolls.size() > 10) {
+			prevTolls.removeFirst();
+		}
+		
 		if (toll.queries().isEmpty()) {
 			idCount++;
-			if (idCount % 1000 == 0) {
-				logger.warn("Independent request {} {}",toll.getRequestTime(),idCount);
+			if ((idCount & 0x3FF) == 0x200) {
+				logger.warn("Independent request {} {} {} ",
+						new Object[] { toll.getRequestTime(), toll.getReplyTime()-toll.getRequestTime(),idCount });
+				
+				Iterator<Associations> prevToll = prevTolls.iterator();
+				while (prevToll.hasNext()) {
+					Associations prev = prevToll.next();
+					logger.info("Previous toll {} {} {}", new Object[] { String.format("%.3f",prev.getRequestTime()), String.format("%.3f",prev.getReplyTime()), prev.getExpression()});
+					prevToll.remove();
+				}
 			}
 			return;
 		}
 		Expression expression = deriveExpression(toll.queries());
+		toll.setExpression(expression);
 		StringBuilder exp = new StringBuilder();
 		expression.print(exp);
 		String term = exp.toString();
 		if (!termCounts.containsKey(term)) {
-			termCounts.put(term, Long.valueOf(1));
+			termCounts.put(term, 1.0);
 			termExpressions.put(term, expression);
 		} else {
-			long count = termCounts.get(term)+1;
-			termCounts.put(term, count);
+			//long count = termCounts.get(term)+1;
+			termCounts.put(term, termCounts.get(term)+toll.weight());
 		}
-		sum++;
+		sum += toll.weight();
 	}
 	
 	private Expression deriveExpression(Collection<NodeEventInfo> events) {
@@ -117,58 +133,76 @@ public class RequestExtractor {
 		return exp;
 	}
 	
+	int orphanCount = 0;
+	int reassignCount = 0;
 	public void collect(NodeEventInfo event) {
 		if (event.getLocal().getPort() == basePort) {
 			// This is client request
 			if (event.getDirection() == Direction.IN) {
 				// incoming: create association
 				Associations toll = new Associations(event);
-				associations.put(event.getRemote(), toll);
 				priorities.put(toll, event.getRemote());
-			} else {
+			} else {								
 				// outgoing, remove association
-				Associations toll = associations.remove(event.getRemote());
+				Associations toll = priorities.removeValue(event.getRemote());
 				if (toll != null) {
-					// Remove from map
-					priorities.remove(toll);
-
 					// Sanity check, move pairs with response outside boundary to next term
 					Collection<NodeEventInfo> futureEvents = toll.prune(event.getTimestamp());
+					if (futureEvents.size() > 0) {
+						reassignCount += futureEvents.size();
+						if ((reassignCount & 0x3FF) == 0x200) {
+							logger.info("Reassigning {} events", reassignCount);
+						}
+					}
 					if (!priorities.isEmpty()) {
 						Associations next = priorities.firstKey();
 						for (NodeEventInfo future : futureEvents) {
 							if (next.getRequestTime() < future.getTimestamp()) {
 								next.addQuery(future.getRemote(), future);
 							} else {
-								logger.warn("Dropped event {}", future);
+								logger.warn("Dropped event {}, can't find open query", future);
 							}
 						}
 					} else if (!futureEvents.isEmpty()) {
 						logger.warn("Dropped {} events", futureEvents.size());
 					}
-					
+					toll.replyTime(event.getTimestamp());
 					emit(toll);
+				} else {
+					// cannot find matching pair
+					logger.warn("Cannot find matching request for reply {}",event);
 				}
 			}
 		} else {
-			// This is dependency calls, we should associate the call with the request to find lag time
+			// This is dependency calls, we should associate the call with the request based on lag time
 			if (event.getDirection() == Direction.OUT) {
 				SocketInfo target = event.getRemote();
-				//logger.info("Prior info {}",priorities.size());
-				//ArrayList<Associations> reverse = new ArrayList<Associations>();
-				//reverse.addAll(priorities.keySet());
 				
-				for (Associations toll : priorities.keySet()) {
-				//for (int i=reverse.size()-1;i>=0;i--) {
-					//Associations toll = reverse.get(i);
-					if (toll.exist(target)) {
-						// request already associated, use another parent
-						continue;
+				if (priorities.size() == 0) {
+					// no open query, ignore event
+					logger.warn("No open association, cannot assign event {}",event);					
+				} else if (priorities.size() == 1) {
+					// Confidently associate if there is no concurrency
+					priorities.firstKey().addQuery(target, event);
+				} else {
+					// concurrent requests, need to intelligently pick the associations
+					assignEarliestRequestWithoutTargetStrategy(target, event);
+					
+					/*
+					int index = (int)Math.floor(Math.random()*priorities.size());
+					double damper = 1;
+					double weight = 1.0/(damper*priorities.size());
+					MapIter<Associations, SocketInfo> iter = priorities.mapIterator();
+					int itIdx = -1;
+					Associations toll = null;
+					while (iter.hasNext() && itIdx < index) {
+						itIdx++;
+						toll = iter.next();
 					}
 					toll.addQuery(target, event);
-					return;
+					toll.weight(toll.weight()*weight);
+					*/
 				}
-				logger.warn("Orphaned event {}",event);
 			} else {
 				// This is returned dependency call, associate it with existing queries
 				for (Associations toll : priorities.keySet()) {
@@ -176,14 +210,31 @@ public class RequestExtractor {
 						return;
 					}
 				}
-				logger.warn("Orphaned event, cannot match association {}",event);
+				orphanCount++;
+				logger.warn("Orphaned event, cannot match association {} {}",event, orphanCount);
 			}
 		}
 	}
 	
+	private void assignEarliestRequestWithoutTargetStrategy(SocketInfo target,
+			NodeEventInfo event) {
+		Associations lastToll = null;
+		for (Associations toll : priorities.keySet()) {
+			lastToll = toll;
+			if (toll.exist(target)) {
+				// request already associated, use another parent
+				continue;
+			}
+			toll.addQuery(target, event);
+			return;
+		}
+		// assign to latest node, if cannot find a match
+		lastToll.addQuery(target, event);
+	}
+
 	public Expression getExpression() {
 		Distributed expression = new Distributed();
-		for (Map.Entry<String, Long> term : termCounts.entrySet()) {
+		for (Map.Entry<String, Double> term : termCounts.entrySet()) {
 			logger.info("{} - {}", term.getKey(), term.getValue());
 			expression.addTerm(termExpressions.get(term.getKey()), 1.0*term.getValue().doubleValue()/sum);
 		}

@@ -41,11 +41,13 @@ public class LagCollector {
 			if (!event.isReply()) {
 				String target = event.getRemote().getAddress();
 				for (RequestToll toll : priorities.keySet()) {
+					/*
 					if (toll.exist(target)) {
 						// request already associated, ignore
 						continue;
 					}
 					toll.addTarget(target);
+					*/
 					DiscreteProbDensity pdf = nodeLag.get(target);
 					if (pdf == null) {
 						pdf = new DiscreteProbDensity();

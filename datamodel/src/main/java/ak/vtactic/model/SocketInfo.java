@@ -1,6 +1,6 @@
 package ak.vtactic.model;
 
-public class SocketInfo {
+public class SocketInfo implements Comparable<SocketInfo> {
 	private String address;
 	private int port;
 	
@@ -40,5 +40,15 @@ public class SocketInfo {
 	@Override
 	public int hashCode() {
 		return address.hashCode()*37+port*13;
+	}
+
+	@Override
+	public int compareTo(SocketInfo o) {
+		int addrCompare = address.compareTo(o.address);
+		if (addrCompare != 0) {
+			return addrCompare;
+		} else {
+			return port-o.port;
+		}
 	}
 }

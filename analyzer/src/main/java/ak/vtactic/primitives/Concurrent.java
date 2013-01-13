@@ -18,4 +18,9 @@ public class Concurrent extends BinaryOperator {
 		DiscreteProbDensity rightPdf = right.eval(bind);
 		return leftPdf.maxPdf(rightPdf);
 	}
+	
+	@Override
+	public String toString() {
+		return print(new StringBuilder()).toString();
+	}
 }

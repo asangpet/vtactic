@@ -1,4 +1,4 @@
-package ak.vtactic.model;
+package ak.vtactic.util;
 
 public class Pair<T, U> {
 	public T first;
