@@ -8,6 +8,7 @@ import org.springframework.stereotype.Component;
 
 import ak.vtactic.analyzer.DependencyTool;
 import ak.vtactic.collector.RequestExtractor;
+import ak.vtactic.collector.ResponseCollector;
 import ak.vtactic.math.DiscreteProbDensity;
 
 @Component
@@ -34,16 +35,29 @@ public class ComponentNode {
 		return this;
 	}
 	
-	public Map<String, DiscreteProbDensity> findModel(String clientHost, double start, double stop) {
+	public Map<String, DiscreteProbDensity> findModel(double start, double stop) {
 		RequestExtractor extractor = dependencyTool.extract(host, port, start, stop);
 		expression = extractor.getExpression();
 		
 		Map<String, DiscreteProbDensity> responses = dependencyTool.collectResponse(host, port, start, stop);
 		DiscreteProbDensity subSystem = expression.eval(responses);
-		measuredResponse = responses.get(clientHost);
+		measuredResponse = responses.get(ResponseCollector.RESPONSE_KEY);
 		processingTime = DiscreteProbDensity.lucyDeconv(measuredResponse, subSystem);
 		
 		return responses;
+	}
+	
+	public Map<String, DiscreteProbDensity> findModel(String clientHost, double start, double split, double stop) {
+		RequestExtractor extractor = dependencyTool.extract(host, port, start, split);
+		expression = extractor.getExpression();
+		
+		Map<String, DiscreteProbDensity> responses = dependencyTool.collectResponse(host, port, start, split);
+		DiscreteProbDensity subSystem = expression.eval(responses);
+		measuredResponse = responses.get(clientHost);
+		processingTime = DiscreteProbDensity.lucyDeconv(measuredResponse, subSystem);
+		
+		// cross-validate
+		return dependencyTool.collectResponse(host, port, split, stop);
 	}
 	
 	public ComponentNode expression(Expression expression) {
@@ -65,6 +79,11 @@ public class ComponentNode {
 	public DiscreteProbDensity estimate(Map<String, DiscreteProbDensity> bind) {
 		DiscreteProbDensity subsystem = expression.eval(bind);
 		return subsystem.tconv(processingTime);
+	}
+	
+	public DiscreteProbDensity estimate(Map<String, DiscreteProbDensity> bind, DiscreteProbDensity expectedProcTime) {
+		DiscreteProbDensity subsystem = expression.eval(bind);
+		return subsystem.tconv(expectedProcTime);
 	}
 	
 	public Expression getExpression() {

@@ -4,7 +4,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -28,9 +27,9 @@ public class RequestExtractor {
 	private static final Logger logger = LoggerFactory.getLogger(RequestExtractor.class);
 	
 	OrderedBiMap<Associations, SocketInfo> priorities = new GenericTreeBidiMap<>();
-	Map<String, Double> termCounts = new HashMap<>();
+	Map<String, Integer> termCounts = new HashMap<>();
 	Map<String, Expression> termExpressions = new HashMap<>();
-	double sum = 0;
+	int sum = 0;
 	
 	final int basePort;
 	
@@ -72,12 +71,14 @@ public class RequestExtractor {
 	}
 	
 	int idCount = 0;
-	LinkedList<Associations> prevTolls = new LinkedList<Associations>();
+	//LinkedList<Associations> prevTolls = new LinkedList<Associations>();
 	public void emit(Associations toll) {
+		/*
 		prevTolls.add(toll);
 		if (prevTolls.size() > 10) {
 			prevTolls.removeFirst();
 		}
+		*/
 		
 		if (toll.queries().isEmpty()) {
 			idCount++;
@@ -85,12 +86,13 @@ public class RequestExtractor {
 				logger.warn("Independent request {} {} {} ",
 						new Object[] { toll.getRequestTime(), toll.getReplyTime()-toll.getRequestTime(),idCount });
 				
+				/*
 				Iterator<Associations> prevToll = prevTolls.iterator();
 				while (prevToll.hasNext()) {
 					Associations prev = prevToll.next();
 					logger.info("Previous toll {} {} {}", new Object[] { String.format("%.3f",prev.getRequestTime()), String.format("%.3f",prev.getReplyTime()), prev.getExpression()});
 					prevToll.remove();
-				}
+				}*/
 			}
 			return;
 		}
@@ -100,7 +102,7 @@ public class RequestExtractor {
 		expression.print(exp);
 		String term = exp.toString();
 		if (!termCounts.containsKey(term)) {
-			termCounts.put(term, 1.0);
+			termCounts.put(term, 1);
 			termExpressions.put(term, expression);
 		} else {
 			//long count = termCounts.get(term)+1;
@@ -187,21 +189,6 @@ public class RequestExtractor {
 				} else {
 					// concurrent requests, need to intelligently pick the associations
 					assignEarliestRequestWithoutTargetStrategy(target, event);
-					
-					/*
-					int index = (int)Math.floor(Math.random()*priorities.size());
-					double damper = 1;
-					double weight = 1.0/(damper*priorities.size());
-					MapIter<Associations, SocketInfo> iter = priorities.mapIterator();
-					int itIdx = -1;
-					Associations toll = null;
-					while (iter.hasNext() && itIdx < index) {
-						itIdx++;
-						toll = iter.next();
-					}
-					toll.addQuery(target, event);
-					toll.weight(toll.weight()*weight);
-					*/
 				}
 			} else {
 				// This is returned dependency call, associate it with existing queries
@@ -231,10 +218,27 @@ public class RequestExtractor {
 		// assign to latest node, if cannot find a match
 		lastToll.addQuery(target, event);
 	}
+	
+	/*
+	private void assignRequestWtihRandomStrategy(SocketInfo target, NodeEventInfo event) {
+		int index = (int)Math.floor(Math.random()*priorities.size());
+		double damper = 1;
+		double weight = 1.0/(damper*priorities.size());
+		MapIter<Associations, SocketInfo> iter = priorities.mapIterator();
+		int itIdx = -1;
+		Associations toll = null;
+		while (iter.hasNext() && itIdx < index) {
+			itIdx++;
+			toll = iter.next();
+		}
+		toll.addQuery(target, event);
+		toll.weight(toll.weight()*weight);
+	}
+	*/
 
 	public Expression getExpression() {
 		Distributed expression = new Distributed();
-		for (Map.Entry<String, Double> term : termCounts.entrySet()) {
+		for (Map.Entry<String, Integer> term : termCounts.entrySet()) {
 			logger.info("{} - {}", term.getKey(), term.getValue());
 			expression.addTerm(termExpressions.get(term.getKey()), 1.0*term.getValue().doubleValue()/sum);
 		}

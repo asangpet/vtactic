@@ -33,7 +33,7 @@ public class Associations implements Comparable<Associations> {
 	Map<SocketInfo, NodeEventInfo> replies = new HashMap<>();
 	
 	// How likely that this association is correct
-	double weight = 1.0;
+	int weight = 1;
 	
 	public Associations(NodeEventInfo ev) {
 		this.requestTime = ev.getTimestamp();
@@ -130,12 +130,12 @@ public class Associations implements Comparable<Associations> {
 		return false;
 	}
 	
-	public Associations weight(double weight) {
+	public Associations weight(int weight) {
 		this.weight = weight;
 		return this;
 	}
 	
-	public double weight() {
+	public int weight() {
 		return weight;
 	}
 	

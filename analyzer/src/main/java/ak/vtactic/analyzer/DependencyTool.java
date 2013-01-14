@@ -31,7 +31,7 @@ public class DependencyTool {
 				count++;
 			}
 			//if (count > 500 && count <9500) {			
-				collector.collect(event);
+				collector.collect(event, basePort);
 			//}
 		}
 		

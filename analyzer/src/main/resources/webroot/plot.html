@@ -1,0 +1,9 @@
+    	<div>
+			<input type="text" ng-model="plotUrl" size="40" ng-init="plotUrl"/>
+			<button ng-click="fetch()">plot</button>
+			<a href="#plot/analyze/{{plotUrl}}">link</a>
+    		<pre>Status: {{status}}</pre>
+    	</div>
+    	
+        <div id="pdfContainer" style="width: 960px; height: 600px; margin: 0 auto">PDF</div>
+        <div id="cdfContainer" style="width: 960px; height: 600px; margin: 0 auto">CDF</div>        

@@ -424,7 +424,7 @@ public class DiscreteProbDensity {
 		// Skip last point (which represents the long tail and can be high)
 		for (int i=0;i<pdf.length-1;i++) {
 			buffer.append(pdf[i]);
-			if (i<pdf.length-1) {
+			if (i<pdf.length-2) {
 				buffer.append(",");
 			}
 		}
@@ -811,6 +811,22 @@ public class DiscreteProbDensity {
 		return raw;
 	}
 
+	public static DiscreteProbDensity expPdf(double lambda) {
+		DiscreteProbDensity result = new DiscreteProbDensity();
+		for (int i = 0; i < result.getPdf().length; i++) {
+			result.getPdf()[i] = lambda*Math.exp(-lambda*i);
+		}
+		return result;
+	}
+	
+	public static double poisson(double k, double lambda) {
+		double result = Math.exp(-lambda);
+		for (int i=1;i<=k;i++) {
+			result = result * lambda / i;
+		}
+		return result;
+	}	
+	
 	static double[] guess;
 	public static void main(String[] args) {
 		DiscreteProbDensity a = new DiscreteProbDensity().normalDist(1000, 100);

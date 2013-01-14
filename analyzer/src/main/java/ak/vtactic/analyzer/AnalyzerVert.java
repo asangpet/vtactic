@@ -5,6 +5,7 @@ import java.net.URI;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.TreeMap;
 
 import org.apache.log4j.BasicConfigurator;
 import org.codehaus.jackson.JsonGenerationException;
@@ -22,6 +23,7 @@ import org.vertx.java.core.eventbus.EventBus;
 import org.vertx.java.core.http.HttpServer;
 import org.vertx.java.core.http.HttpServerRequest;
 import org.vertx.java.core.http.RouteMatcher;
+import org.vertx.java.core.json.JsonObject;
 
 import ak.vtactic.analyzer.handler.PlacementHandler;
 import ak.vtactic.collector.RequestExtractor;
@@ -52,6 +54,7 @@ public class AnalyzerVert {
 	@Autowired DataService dataService;
 	@Autowired AnalyzerTool analyzerTool;
 	@Autowired DependencyTool dependencyTool;
+	@Autowired ModelTool modelTool;
 	@Autowired MathService mathService;
 
 	@Autowired PlacementHandler placementHandler;
@@ -468,57 +471,6 @@ public class AnalyzerVert {
     	});
     	
     	routeMatcher.all("/analyze/processing/single",new Handler<HttpServerRequest>() {
-    		
-    		private DiscreteProbDensity expPdf(double lambda) {
-    			DiscreteProbDensity result = new DiscreteProbDensity();
-    			for (int i = 0; i < result.getPdf().length; i++) {
-    				result.getPdf()[i] = lambda*Math.exp(-lambda*i);
-    			}
-    			return result;
-    		}
-    		
-    		private double poisson(double k, double lambda) {
-    			double result = Math.exp(-lambda);
-    			for (int i=1;i<=k;i++) {
-    				result = result * lambda / i;
-    			}
-    			return result;
-    		}
-    		
-    		/**
-    		 * Find distribution of processing time, based on the non-contended processing time (aPdf)
-    		 * and the probability of having co-arrival request at a point in time t (dPdf) - approximate by inter-arrival
-    		 * 
-    		 * The co-arrival probability is calculated based on the mean interarrival (period)
-    		 * ideal processing time (processing) and rate of arrival within the period
-    		 * 
-    		 * @param rate
-    		 * @param processing
-    		 * @param period
-    		 * @param aPdf
-    		 * @param dPdf
-    		 * @return
-    		 */
-    		DiscreteProbDensity findNdistP(double rate, double processing, double period, DiscreteProbDensity aPdf, DiscreteProbDensity dPdf) {
-    			double lambda = 2*rate*processing / period;
-				int degree = 5;
-				DiscreteProbDensity[] nConv = new DiscreteProbDensity[degree];
-				double[] coeff = new double[degree];
-				coeff[0] = poisson(0,lambda);
-				nConv[0] = aPdf;
-				double sum = coeff[0];						
-				for (int i=1;i<degree;i++) {
-					nConv[i] = DiscreteProbDensity.coConv(i+1,dPdf,aPdf).normalize();
-					coeff[i] = poisson(i,lambda);
-					if (i<degree-1) {
-						sum+=coeff[i];
-					}
-				}
-				coeff[degree-1] = 1-sum;
-				DiscreteProbDensity ndistP = DiscreteProbDensity.distribute(coeff, nConv);
-				return ndistP;
-    		}
-    		
 			@Override
 			public void handle(final HttpServerRequest req) {
 				req.response.setChunked(true);
@@ -526,8 +478,8 @@ public class AnalyzerVert {
 				
 				DiscreteProbDensity aPdf = compA.get("10.1.1.9");
 				double lambda = 1.0/500;
-				DiscreteProbDensity dPdf = expPdf(lambda);
-				compA.put("ndist", findNdistP(1.0, 100.0, 500.0, aPdf, dPdf));
+				DiscreteProbDensity dPdf = DiscreteProbDensity.expPdf(lambda);
+				compA.put("ndist", modelTool.findContendedProcessingTime(1.0, 100.0, 500.0, aPdf, dPdf));
 				
 				PrettyPrinter.printResponse(req, "r", compA.entrySet());
 				
@@ -570,13 +522,32 @@ public class AnalyzerVert {
 				req.response.end();
 			}
 		});
+    	
+    	routeMatcher.all("/id", new Handler<HttpServerRequest>() {
+    		@Override
+    		public void handle(HttpServerRequest req) {
+				req.response.setChunked(true);
+				req.response.write("Runner "+id+"\n");		
+				req.response.end();					
+    		}
+    	});
+    	
+    	routeMatcher.all("/analyze/jsondata", new Handler<HttpServerRequest>() {
+    		@Override
+    		public void handle(HttpServerRequest req) {
+    			Map<String, Object> data = new TreeMap<String, Object>();
+    			data.put("a", new double[] {1.0,2.0,3.0});
+    			data.put("b", new double[] {3.0,2.0,1.0});
+    			JsonObject jsObject = new JsonObject(data);
+    			req.response.end(jsObject.toString());
+    		}
+    	});
 
     	routeMatcher.noMatch(new Handler<HttpServerRequest>() {			
 			@Override
 			public void handle(HttpServerRequest req) {
-				req.response.setChunked(true);
-				req.response.write("Runner "+id+"\n");		
-				req.response.end();
+				String file = req.path.equals("/")?"index.html":req.path;
+				req.response.sendFile("src/main/resources/webroot/"+file);
 			}
 		});
     	

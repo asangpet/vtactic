@@ -3,11 +3,14 @@ package ak.vtactic.analyzer;
 import java.util.Collection;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.vertx.java.core.http.HttpServerRequest;
 
 import ak.vtactic.math.DiscreteProbDensity;
 
 public class PrettyPrinter {
+	private static final Logger log = LoggerFactory.getLogger(PrettyPrinter.class);
 	static final String[] colors = new String[] { "b", "r", "g", "m", "k", "c" };
 
 	private static String sanitize(String var) {
@@ -26,11 +29,19 @@ public class PrettyPrinter {
 		return name.replace("_", ".");
 	}
 	
+	/**
+	 * Print MATLAB response
+	 * @param req
+	 * @param varprefix
+	 * @param entries
+	 */
 	public static void printResponse(HttpServerRequest req, String varprefix, Collection<Map.Entry<String, DiscreteProbDensity>> entries) {
 		req.response.write("figure; hold on;\n");
 		int i = 0;
 		StringBuilder legends = new StringBuilder();
 		for (Map.Entry<String, DiscreteProbDensity> entry : entries) {
+			log.debug("Pretty printing component {}", entry.getKey());
+			
 			String name = sanitize(varprefix+"_"+entry.getKey().substring(entry.getKey().lastIndexOf("/")+1));
 			if (legends.length() > 0) {
 				legends.append(",");
@@ -60,4 +71,20 @@ public class PrettyPrinter {
 
 	}
 
+	public static void printJSON(HttpServerRequest req, Collection<Map.Entry<String, DiscreteProbDensity>> entries) {
+		req.response.write("{");
+		int count = 0;
+		for (Map.Entry<String, DiscreteProbDensity> entry : entries) {
+			log.debug("Pretty printing JSON component {}", entry.getKey());
+			String name = entry.getKey();
+			req.response.write(String.format("\"%s\":",name));			
+			req.response.write(entry.getValue().printBuffer().toString());
+			count++;
+			if (count < entries.size()) {
+				req.response.write(",");
+			}
+		}
+		req.response.write("}");
+		log.debug("Response generation completed");
+	}
 }
