@@ -33,63 +33,84 @@ public class PlacementHandler {
 	@Autowired
 	BeanFactory factory;
 	
+	class ProcessModelHandler implements Handler<HttpServerRequest> {
+		double startTime;
+		double stopTime;
+		
+		public ProcessModelHandler(double start, double stop) {
+			startTime = start;
+			stopTime = stop;
+		}
+		
+		@Override
+		public void handle(HttpServerRequest req) {
+			req.response.setChunked(true);
+			
+			Map<String, DiscreteProbDensity> result = new TreeMap<String, DiscreteProbDensity>();
+			
+			ComponentNode sub = factory.getBean(ComponentNode.class).host("10.4.20.2").port(80);
+			Map<String, DiscreteProbDensity> resp = sub.findModel(startTime, stopTime);
+			result.put("B", sub.getMeasuredResponse());
+			result.put("Estimate B", sub.estimate(resp));
+			result.put("Subsys   B", sub.subsystem(resp));
+			
+			DiscreteProbDensity bs = sub.getProcessingTime();
+			result.put("Process B", bs);
+			result.put("Contend B0", ModelTool.findContendedProcessingIndependent(1000, 0, bs));
+			result.put("Contend B1", ModelTool.findContendedProcessingIndependent(1000, 1, bs));
+			//result.put("Contend B2", ModelTool.findContendedProcessingIndependent(1000, 2, bs));
+			//result.put("Contend B3", ModelTool.findContendedProcessingIndependent(1000, 3, bs));
+			//result.put("Process Bx2", bs.tconv(bs));
+			//result.put("Process Bx3", bs.tconv(bs).tconv(bs));
+			
+			/*
+			result.put("D", resp.get("10.4.20.4"));
+			result.put("E", resp.get("10.4.20.5"));
+			
+			ComponentNode subC = factory.getBean(ComponentNode.class).host("10.4.20.3").port(80);
+			resp = subC.findModel(startTime, stopTime);
+			result.put("C", subC.getMeasuredResponse());
+			result.put("Estimate C", subC.estimate(resp));
+			result.put("Process  C", subC.getProcessingTime());
+			
+			result.put("F", resp.get("10.4.20.6"));
+			result.put("G", resp.get("10.4.20.7"));
+			
+			ComponentNode actual = factory.getBean(ComponentNode.class).host("10.4.20.1").port(80);
+			resp = actual.findModel(startTime, stopTime);
+			result.put("A", actual.getMeasuredResponse());
+			result.put("Estimate A", actual.estimate(resp));
+			result.put("Process  A", actual.getProcessingTime());
+			*/
+			
+			PrettyPrinter.printJSON(req, result.entrySet());
+			req.response.end();
+		}
+	}
+	
 	public void bind(RouteMatcher routeMatcher) {
-		routeMatcher.all("/analyze/placement-rr-pin-separate-proc-a-3M", new Handler<HttpServerRequest>() {
-			// round-robin request from A, placement abc/df/eg (pin on separate cpus)
-			// no processing time on A
-			
-			double startTime = 1.358120526491732E12;
-			double stopTime =  Double.MAX_VALUE;
-			
-			@Override
-			public void handle(HttpServerRequest req) {
-				req.response.setChunked(true);
-				
-				Map<String, DiscreteProbDensity> result = new TreeMap<String, DiscreteProbDensity>();
-				
-				ComponentNode actual = factory.getBean(ComponentNode.class).host("10.4.20.1").port(80);
-				Map<String, DiscreteProbDensity> resp = actual.findModel(startTime, stopTime);
-				result.put("Measured A", actual.getMeasuredResponse());
-				result.put("ActualEst A", actual.estimate(resp));
-				result.put("ActualProc A", actual.getProcessingTime());
-				
-				result.put("B", resp.get("10.4.20.2"));
-				result.put("C", resp.get("10.4.20.3"));
-				
-				PrettyPrinter.printJSON(req, result.entrySet());
-				req.response.end();
-			}
-		});		
+		// round-robin request from A, placement a-bc/df/eg (a+bc on same hosts (diff cpu). df eg = nopin)
+		// 3M cycle processing time on A
+		routeMatcher.all("/analyze/placement-rr-pin-a-bc-proc-a-3M", 
+				new ProcessModelHandler(1.35812541317837E12, Double.MAX_VALUE));
 		
-		routeMatcher.all("/analyze/placement-rr-pin-separate-no-proc-a", new Handler<HttpServerRequest>() {
-			// round-robin request from A, placement abc/df/eg (pin on separate cpus)
-			// no processing time on A
+		// round-robin request from A, placement abc/df/eg (abc pin on same cpus. df eg = nopin)
+		// 3M cycle processing time on A
+		routeMatcher.all("/analyze/placement-rr-pin-shared-proc-a-3M", 
+				new ProcessModelHandler(1.358122651383813E12, 1.358125413177958E12));
 			
-			double startTime = 1.358110211222640E12;
-			double stopTime =  1.358120526491354E12;
-			
-			@Override
-			public void handle(HttpServerRequest req) {
-				req.response.setChunked(true);
-				
-				Map<String, DiscreteProbDensity> result = new TreeMap<String, DiscreteProbDensity>();
-				
-				ComponentNode actual = factory.getBean(ComponentNode.class).host("10.4.20.1").port(80);
-				Map<String, DiscreteProbDensity> resp = actual.findModel(startTime, stopTime);
-				result.put("Measured A", actual.getMeasuredResponse());
-				result.put("ActualEst A", actual.estimate(resp));
-				result.put("ActualProc A", actual.getProcessingTime());
-				
-				result.put("B", resp.get("10.4.20.2"));
-				result.put("C", resp.get("10.4.20.3"));
-				
-				PrettyPrinter.printJSON(req, result.entrySet());
-				req.response.end();
-			}
-		});
+		// round-robin request from A, placement abc/df/eg (pin on separate cpus)
+		// 3M cycle processing time on A
+		routeMatcher.all("/analyze/placement-rr-pin-separate-proc-a-3M", 
+				new ProcessModelHandler(1.358120526491732E12, 1.358122651383419E12));
 		
-		routeMatcher.all("/analyze/placement-rr", new Handler<HttpServerRequest>() {
-			// round-robin request from A, placement abc/df/eg (pin 1 cpu)
+		// round-robin request from A, placement abc/df/eg (pin on separate cpus)
+		// no processing time on A
+		routeMatcher.all("/analyze/placement-rr-pin-separate-no-proc-a",
+				new ProcessModelHandler(1.358110211222640E12, 1.358120526491354E12));
+		
+		routeMatcher.all("/analyze/placement-rr-shared-no-proc-a", new Handler<HttpServerRequest>() {
+			// round-robin request from A, placement abc/df/eg (pin all 1 cpu)
 			// no processing time on A
 			
 			double startTime = 1.358081420772367E12;

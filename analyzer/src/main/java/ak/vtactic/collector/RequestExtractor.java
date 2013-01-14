@@ -73,6 +73,7 @@ public class RequestExtractor {
 	int idCount = 0;
 	//LinkedList<Associations> prevTolls = new LinkedList<Associations>();
 	public void emit(Associations toll) {
+		requestCount++;
 		/*
 		prevTolls.add(toll);
 		if (prevTolls.size() > 10) {
@@ -137,6 +138,7 @@ public class RequestExtractor {
 	
 	int orphanCount = 0;
 	int reassignCount = 0;
+	int requestCount = 0;
 	public void collect(NodeEventInfo event) {
 		if (event.getLocal().getPort() == basePort) {
 			// This is client request
@@ -203,9 +205,13 @@ public class RequestExtractor {
 		}
 	}
 	
+	int maxConcurrent = 0;
 	private void assignEarliestRequestWithoutTargetStrategy(SocketInfo target,
 			NodeEventInfo event) {
 		Associations lastToll = null;
+		if (priorities.size() > maxConcurrent) {
+			maxConcurrent = priorities.size();
+		}
 		for (Associations toll : priorities.keySet()) {
 			lastToll = toll;
 			if (toll.exist(target)) {
@@ -217,6 +223,10 @@ public class RequestExtractor {
 		}
 		// assign to latest node, if cannot find a match
 		lastToll.addQuery(target, event);
+	}
+	
+	public int getMaxConcurrent() {
+		return maxConcurrent;
 	}
 	
 	/*
@@ -243,5 +253,9 @@ public class RequestExtractor {
 			expression.addTerm(termExpressions.get(term.getKey()), 1.0*term.getValue().doubleValue()/sum);
 		}
 		return expression;
+	}
+	
+	public int getRequestCount() {
+		return requestCount;
 	}
 }

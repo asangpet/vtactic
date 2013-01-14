@@ -39,5 +39,34 @@ public class ModelTool {
 		DiscreteProbDensity ndistP = DiscreteProbDensity.distribute(coeff, nConv);
 		return ndistP;
 	}
+	
+	public static DiscreteProbDensity findContendedProcessingIndependent(double arrivalPeriod, int arrivalCount, DiscreteProbDensity nonContendedProcessing) {
+		//double lambda = arrivalCount / arrivalPeriod * (nonContendedProcessing.getPdf()[x]);
+		//DiscreteProbDensity lagPdf = DiscreteProbDensity.expPdf(arrivalCount/arrivalPeriod);
+		
+		DiscreteProbDensity result = new DiscreteProbDensity(nonContendedProcessing);
+		for (int x=0;x<result.getPdf().length;x++) {
+			// x is the result processing time
+			// consider the case where the non-contended processing time ranges from 0 to x
+			double allK = 0;
+			for (int k=0;k<x;k++) {
+				double sum = 0;
+				double lambda = arrivalCount / arrivalPeriod * k;
+				for (int co = 0;co < 20;co++) {
+					double coProb = DiscreteProbDensity.poisson(co, lambda);
+					// should replace nonContendProc with the contended element processing time
+					sum += nonContendedProcessing.getPdf()[x/(co+1)] * coProb;
+				}
+				allK += sum * nonContendedProcessing.getPdf()[k];
+			}
+			result.getPdf()[x] = allK;
+			/*
+			for (int k=0;k<x;k++) {
+				sum += lagPdf.getPdf()[k] * nonContendedProcessing.getPdf()[(x+k)/(arrivalCount+1)];
+			}
+			*/
+		}
+		return result.normalize();
+	}
 
 }

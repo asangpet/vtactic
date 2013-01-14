@@ -72,7 +72,8 @@ public class DependencyTool {
 			collector.collect(event);
 			count++;
 		}
-		logger.info("Processed {} events",count);
+		logger.info("Processed {} events. {} requests. Max concurrency {}",
+				new Object[] { count, collector.getRequestCount(), collector.getMaxConcurrent() });
 		
 		return collector;
 	}

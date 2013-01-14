@@ -76,6 +76,10 @@ public class ComponentNode {
 		return processingTime;
 	}
 	
+	public DiscreteProbDensity subsystem(Map<String, DiscreteProbDensity> bind) {
+		return expression.eval(bind);
+	}
+	
 	public DiscreteProbDensity estimate(Map<String, DiscreteProbDensity> bind) {
 		DiscreteProbDensity subsystem = expression.eval(bind);
 		return subsystem.tconv(processingTime);

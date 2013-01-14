@@ -32,11 +32,17 @@ function PlotCtrl($scope, $routeParams, $http) {
             },
     
             xAxis: {            
-                title: { text: 'Time(ms)' }
+                title: { text: 'Time(ms)' },
+                startOnTick: true,
+                minPadding: 0.0,
+                showFirstLabel: false
             },
     
             yAxis: {
                 title: { text: 'pdf' },
+                min: 0.0,
+                max: 1.0,
+                lineWidth: 1.0
             },
             plotOptions: {
             	line: {
@@ -47,7 +53,7 @@ function PlotCtrl($scope, $routeParams, $http) {
             },
     
             tooltip: {
-                //shared: true,
+                shared: true,
                 crosshairs: [true,true]
             }
         };
