@@ -33,8 +33,8 @@ public class DataService {
 		mongo = new Mongo("127.0.0.1", 27017);
 		jongo = new Jongo(mongo.getDB("collector_b"));
 		*/
-		mongo = new Mongo("10.0.20.1", 27017);
-		//mongo = new Mongo("127.0.0.1", 27017);
+		//mongo = new Mongo("10.0.20.1", 27017);
+		mongo = new Mongo("127.0.0.1", 27017);
 		jongo = new Jongo(mongo.getDB("collector"));
 		responseCollection = jongo.getCollection("responseTime");
 		//eventCollection = jongo.getCollection("events");

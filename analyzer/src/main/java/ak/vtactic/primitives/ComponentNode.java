@@ -20,6 +20,7 @@ public class ComponentNode {
 	Expression expression;
 	DiscreteProbDensity measuredResponse;
 	DiscreteProbDensity processingTime;
+	DiscreteProbDensity interarrival;
 
 	String host;
 	int port;
@@ -37,7 +38,8 @@ public class ComponentNode {
 	
 	public Map<String, DiscreteProbDensity> findModel(double start, double stop) {
 		RequestExtractor extractor = dependencyTool.extract(host, port, start, stop);
-		expression = extractor.getExpression();
+		expression = extractor.calculateExpression();
+		interarrival = extractor.getInterarrival();
 		
 		Map<String, DiscreteProbDensity> responses = dependencyTool.collectResponse(host, port, start, stop);
 		DiscreteProbDensity subSystem = expression.eval(responses);
@@ -46,10 +48,12 @@ public class ComponentNode {
 		
 		return responses;
 	}
-	
+
+	/*
 	public Map<String, DiscreteProbDensity> findModel(String clientHost, double start, double split, double stop) {
 		RequestExtractor extractor = dependencyTool.extract(host, port, start, split);
-		expression = extractor.getExpression();
+		expression = extractor.calculateExpression();
+		interarrival = extractor.getInterarrival();
 		
 		Map<String, DiscreteProbDensity> responses = dependencyTool.collectResponse(host, port, start, split);
 		DiscreteProbDensity subSystem = expression.eval(responses);
@@ -59,6 +63,7 @@ public class ComponentNode {
 		// cross-validate
 		return dependencyTool.collectResponse(host, port, split, stop);
 	}
+	*/
 	
 	public ComponentNode expression(Expression expression) {
 		this.expression = expression;
@@ -100,5 +105,9 @@ public class ComponentNode {
 	
 	public DiscreteProbDensity getProcessingTime() {
 		return processingTime;
+	}
+	
+	public DiscreteProbDensity getInterarrival() {
+		return interarrival;
 	}
 }

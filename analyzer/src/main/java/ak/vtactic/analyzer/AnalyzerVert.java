@@ -437,7 +437,7 @@ public class AnalyzerVert {
 				req.response.setChunked(true);
 				RequestExtractor extractor = dependencyTool.extract("10.4.20.1", 80, 1357360213416.915, 1357416207817.871);
 				StringBuilder sb = new StringBuilder();
-				Expression expression = extractor.getExpression();
+				Expression expression = extractor.calculateExpression();
 				expression.print(sb);
 				req.response.write(sb.toString());
 				req.response.write("\n\n");

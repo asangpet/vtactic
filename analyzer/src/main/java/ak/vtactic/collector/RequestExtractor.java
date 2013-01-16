@@ -10,6 +10,7 @@ import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ak.vtactic.math.DiscreteProbDensity;
 import ak.vtactic.model.Associations;
 import ak.vtactic.model.Direction;
 import ak.vtactic.model.NodeEventInfo;
@@ -25,6 +26,8 @@ import ak.vtactic.util.Pair;
 
 public class RequestExtractor {
 	private static final Logger logger = LoggerFactory.getLogger(RequestExtractor.class);
+	
+	DiscreteProbDensity interarrival = new DiscreteProbDensity();
 	
 	OrderedBiMap<Associations, SocketInfo> priorities = new GenericTreeBidiMap<>();
 	Map<String, Integer> termCounts = new HashMap<>();
@@ -113,6 +116,7 @@ public class RequestExtractor {
 	}
 	
 	private Expression deriveExpression(Collection<NodeEventInfo> events) {
+		// derive expressions
 		NodeEventInfo first = getFirstQuery(events);
 		if (first == null) {
 			return null;
@@ -139,6 +143,7 @@ public class RequestExtractor {
 	int orphanCount = 0;
 	int reassignCount = 0;
 	int requestCount = 0;
+	double lastArrival = -1;
 	public void collect(NodeEventInfo event) {
 		if (event.getLocal().getPort() == basePort) {
 			// This is client request
@@ -146,6 +151,13 @@ public class RequestExtractor {
 				// incoming: create association
 				Associations toll = new Associations(event);
 				priorities.put(toll, event.getRemote());
+				
+				if (lastArrival < 0) {
+					lastArrival = event.getTimestamp();
+				} else {
+					interarrival.add(event.getTimestamp() - lastArrival);
+					lastArrival = event.getTimestamp();
+				}
 			} else {								
 				// outgoing, remove association
 				Associations toll = priorities.removeValue(event.getRemote());
@@ -246,13 +258,21 @@ public class RequestExtractor {
 	}
 	*/
 
-	public Expression getExpression() {
+	public Expression calculateExpression() {
+		// normalzied interarrival
+		interarrival.getPdf()[interarrival.getPdf().length-1] = 0;
+		interarrival = interarrival.normalize();
+
 		Distributed expression = new Distributed();
 		for (Map.Entry<String, Integer> term : termCounts.entrySet()) {
 			logger.info("{} - {}", term.getKey(), term.getValue());
 			expression.addTerm(termExpressions.get(term.getKey()), 1.0*term.getValue().doubleValue()/sum);
 		}
 		return expression;
+	}
+	
+	public DiscreteProbDensity getInterarrival() {
+		return interarrival;
 	}
 	
 	public int getRequestCount() {

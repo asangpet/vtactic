@@ -48,16 +48,53 @@ public class PlacementHandler {
 			
 			Map<String, DiscreteProbDensity> result = new TreeMap<String, DiscreteProbDensity>();
 			
-			ComponentNode sub = factory.getBean(ComponentNode.class).host("10.4.20.2").port(80);
-			Map<String, DiscreteProbDensity> resp = sub.findModel(startTime, stopTime);
-			result.put("B", sub.getMeasuredResponse());
-			result.put("Estimate B", sub.estimate(resp));
-			result.put("Subsys   B", sub.subsystem(resp));
+			Map<String, DiscreteProbDensity> lag = dependencyTool.collectLag("10.4.20.1", 80, startTime, stopTime);
+			result.put("lag B", lag.get("10.4.20.2"));
+			result.put("lag C", lag.get("10.4.20.3"));
 			
-			DiscreteProbDensity bs = sub.getProcessingTime();
-			result.put("Process B", bs);
-			result.put("Contend B0", ModelTool.findContendedProcessingIndependent(1000, 0, bs));
-			result.put("Contend B1", ModelTool.findContendedProcessingIndependent(1000, 1, bs));
+			ComponentNode main = factory.getBean(ComponentNode.class).host("10.4.20.1").port(80);
+			main.findModel(startTime, stopTime);
+			result.put("A", main.getMeasuredResponse());
+			result.put("A interarrival", main.getInterarrival());
+			
+			ComponentNode subB = factory.getBean(ComponentNode.class).host("10.4.20.2").port(80);
+			Map<String, DiscreteProbDensity> respB = subB.findModel(startTime, stopTime);
+			result.put("B", subB.getMeasuredResponse());
+			result.put("Estimate B", subB.estimate(respB));
+			result.put("Subsys   B", subB.subsystem(respB));
+			result.put("B interarrival", subB.getInterarrival());
+			
+			DiscreteProbDensity bproc = subB.getProcessingTime();
+			result.put("Process B", bproc);
+			//result.put("Contend B0", ModelTool.findContendedProcessingIndependent(1000, 0, bs).tconv(sub.subsystem(respB)));
+
+			/* baseline compare */
+			Map<String, DiscreteProbDensity> baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.35812541317837E12, 1358135491396.193); 
+			result.put("Actual contendB1",baseline.get("10.4.20.1"));
+			baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.358122651383813E12, 1.358125413177958E12); 
+			result.put("Actual contendB2",baseline.get("10.4.20.1"));
+			baseline = dependencyTool.collectResponse("10.4.20.3", 80, 1.35812541317837E12, 1358135491396.193); 
+			result.put("Actual contendC1",baseline.get("10.4.20.1"));
+			baseline = dependencyTool.collectResponse("10.4.20.3", 80, 1.358122651383813E12, 1.358125413177958E12); 
+			result.put("Actual contendC2",baseline.get("10.4.20.1"));
+			
+			ComponentNode subC = factory.getBean(ComponentNode.class).host("10.4.20.3").port(80);
+			Map<String, DiscreteProbDensity> respC = subC.findModel(startTime, stopTime);
+			result.put("C", subC.getMeasuredResponse());
+			result.put("C interarrival", subC.getInterarrival());
+			
+			DiscreteProbDensity contendMixB =
+					ModelTool.contendedProcessingSim(lag.get("10.4.20.2"), lag.get("10.4.20.3"), subB.getProcessingTime(), subC.getProcessingTime(),
+					main.getInterarrival());
+			//result.put("GProc B", contendMixB);
+			result.put("Guess B", contendMixB.tconv(subB.subsystem(respB)));
+			
+			DiscreteProbDensity contendMixC =
+					ModelTool.contendedProcessingSim(lag.get("10.4.20.3"), lag.get("10.4.20.2"), subC.getProcessingTime(), subB.getProcessingTime(),
+					main.getInterarrival());
+			result.put("Guess C", contendMixC.tconv(subC.subsystem(respC)));
+			
+			//result.put("Contend B1", ModelTool.findContendedProcessingIndependent(1000, 1, bs));
 			//result.put("Contend B2", ModelTool.findContendedProcessingIndependent(1000, 2, bs));
 			//result.put("Contend B3", ModelTool.findContendedProcessingIndependent(1000, 3, bs));
 			//result.put("Process Bx2", bs.tconv(bs));

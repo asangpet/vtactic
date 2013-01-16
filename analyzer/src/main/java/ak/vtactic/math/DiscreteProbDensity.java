@@ -810,6 +810,21 @@ public class DiscreteProbDensity {
 	public double[] getRaw() {
 		return raw;
 	}
+	
+	/**
+	 * @return the index of pdf if we take a random sampling from this distribution
+	 */
+	public int random() {
+		double rand = Math.random();
+		double sum = 0;
+		for (int i = 0; i < pdf.length; i++) {
+			sum += pdf[i];
+			if (sum >= rand) {
+				return i;
+			}
+		}
+		return pdf.length-1;
+	}
 
 	public static DiscreteProbDensity expPdf(double lambda) {
 		DiscreteProbDensity result = new DiscreteProbDensity();
