@@ -32,6 +32,8 @@ public class RequestExtractor {
 	OrderedBiMap<Associations, SocketInfo> priorities = new GenericTreeBidiMap<>();
 	Map<String, Integer> termCounts = new HashMap<>();
 	Map<String, Expression> termExpressions = new HashMap<>();
+	Map<String, Integer> dependencies = new HashMap<String, Integer>();
+	
 	int sum = 0;
 	
 	final int basePort;
@@ -193,6 +195,10 @@ public class RequestExtractor {
 			// This is dependency calls, we should associate the call with the request based on lag time
 			if (event.getDirection() == Direction.OUT) {
 				SocketInfo target = event.getRemote();
+				// record dependency calls
+				if (dependencies.get(target.getAddress()) == null) {
+					dependencies.put(target.getAddress(), target.getPort());
+				}
 				
 				if (priorities.size() == 0) {
 					// no open query, ignore event
@@ -242,7 +248,7 @@ public class RequestExtractor {
 	}
 	
 	/*
-	private void assignRequestWtihRandomStrategy(SocketInfo target, NodeEventInfo event) {
+	private void assignRequestWithRandomStrategy(SocketInfo target, NodeEventInfo event) {
 		int index = (int)Math.floor(Math.random()*priorities.size());
 		double damper = 1;
 		double weight = 1.0/(damper*priorities.size());
@@ -259,7 +265,8 @@ public class RequestExtractor {
 	*/
 
 	public Expression calculateExpression() {
-		// normalzied interarrival
+		// normalized interarrival
+		// TODO: Consider should we collapse this interarrival like what we do here (and ignore the infinity)
 		interarrival.getPdf()[interarrival.getPdf().length-1] = 0;
 		interarrival = interarrival.normalize();
 
@@ -277,5 +284,9 @@ public class RequestExtractor {
 	
 	public int getRequestCount() {
 		return requestCount;
+	}
+	
+	public Map<String, Integer> getDependencies() {
+		return dependencies;
 	}
 }

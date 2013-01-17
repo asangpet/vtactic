@@ -13,4 +13,17 @@ public abstract class BinaryOperator implements Expression {
 		this.right = right;
 		return this;
 	}
+	
+	public Expression getLeft() {
+		return left;
+	}
+	
+	public Expression getRight() {
+		return right;
+	}
+	
+	@Override
+	public boolean contain(String operand) {
+		return left.contain(operand) || right.contain(operand);
+	}
 }

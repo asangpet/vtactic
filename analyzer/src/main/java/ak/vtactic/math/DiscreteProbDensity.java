@@ -45,7 +45,7 @@ public class DiscreteProbDensity {
 	public void add(double value) {
 		int slot = (int)Math.round((value-min) / interval);
 		// bounded slot
-		if (slot >= pdf.length) slot = pdf.length-1;
+		if (slot >= pdf.length || slot < 0) slot = pdf.length-1;
 		pdf[slot]++;
 		rawCount++;
 	}
@@ -392,12 +392,14 @@ public class DiscreteProbDensity {
 
 		for (int i=0;i<numSlots;i++) {
 			sum += pdf[i];
-			if (sum > target) {
+			if (sum >= target) {
 				// do linear adjustment
-				return interval*(i + (target - (sum-pdf[i])) / pdf[i]) - offset;
+				//return interval*(i + (target - (sum-pdf[i])) / pdf[i]) - offset;
+				return i;
 			}
 		}
-		return numSlots * interval - offset;
+		return numSlots-1;
+		//return numSlots * interval - offset;
 	}
 
 	public void print() {
@@ -830,6 +832,14 @@ public class DiscreteProbDensity {
 		DiscreteProbDensity result = new DiscreteProbDensity();
 		for (int i = 0; i < result.getPdf().length; i++) {
 			result.getPdf()[i] = lambda*Math.exp(-lambda*i);
+		}
+		return result;
+	}
+	
+	public static DiscreteProbDensity uniformPdf() {
+		DiscreteProbDensity result = new DiscreteProbDensity();
+		for (int i = 0; i < result.getPdf().length; i++) {
+			result.getPdf()[i] = 1.0/result.getPdf().length;
 		}
 		return result;
 	}

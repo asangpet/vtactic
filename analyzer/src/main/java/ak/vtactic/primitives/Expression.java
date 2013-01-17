@@ -7,4 +7,6 @@ import ak.vtactic.math.DiscreteProbDensity;
 public interface Expression {
 	StringBuilder print(StringBuilder builder);
 	DiscreteProbDensity eval(Map<String, DiscreteProbDensity> bind);
+	boolean contain(String operand);
+
 }

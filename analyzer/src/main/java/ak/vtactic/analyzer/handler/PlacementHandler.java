@@ -1,6 +1,9 @@
 package ak.vtactic.analyzer.handler;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 
 import org.slf4j.Logger;
@@ -19,6 +22,7 @@ import ak.vtactic.analyzer.PrettyPrinter;
 import ak.vtactic.collector.ResponseCollector;
 import ak.vtactic.math.DiscreteProbDensity;
 import ak.vtactic.primitives.ComponentNode;
+import ak.vtactic.primitives.ModelApplication;
 
 @Component
 public class PlacementHandler {
@@ -42,11 +46,82 @@ public class PlacementHandler {
 			stopTime = stop;
 		}
 		
+		private String translate(String host) {
+			switch (host) {
+			case "10.4.20.1":return "A";
+			case "10.4.20.2":return "B";
+			case "10.4.20.3":return "C";
+			case "10.4.20.4":return "D";
+			case "10.4.20.5":return "E";
+			case "10.4.20.6":return "F";
+			case "10.4.20.7":return "G";
+			default:
+				return host;
+			}
+		}
+		
 		@Override
 		public void handle(HttpServerRequest req) {
 			req.response.setChunked(true);
+			ModelApplication app = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, startTime, stopTime);
+			
+			ModelApplication baseline1 = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, 1.35812541317837E12, 1358135491396.193);
+			
+			ModelApplication baseline2 = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, 1.358122651383813E12, 1.358125413177958E12);
 			
 			Map<String, DiscreteProbDensity> result = new TreeMap<String, DiscreteProbDensity>();
+			/*
+			for (Map.Entry<String, ComponentNode> node : app.getNodes().entrySet()) {
+				result.put("Processing "+translate(node.getKey()), node.getValue().getProcessingTime());
+				result.put("Inter "+translate(node.getKey()), node.getValue().getInterarrival());
+				if (!translate(node.getKey()).equals("A")) {
+					result.put("Lag "+translate(node.getKey()), node.getValue().getLag());
+				}
+			}
+			 */
+			
+			Set<ComponentNode> contender = new HashSet<ComponentNode>();
+			contender.add(app.getNode("10.4.20.3"));
+
+			Map<String, DiscreteProbDensity> bind = new HashMap<String, DiscreteProbDensity>();
+			bind.put("10.4.20.4", baseline1.getNode("10.4.20.4").getMeasuredResponse());
+			bind.put("10.4.20.5", baseline1.getNode("10.4.20.5").getMeasuredResponse());
+			
+			DiscreteProbDensity bsim = app.getContendedProcessingSim(app.getNode("10.4.20.2"), contender, baseline1.getEntryNode().getInterarrival());
+			DiscreteProbDensity bguess = bsim.tconv(app.getNode("10.4.20.2").subsystem(bind));
+			result.put("Contended B1", bguess);
+			log.info("B1:{} {}",bguess.percentile(90), bguess.percentile(95));
+			
+			bind.put("10.4.20.4", baseline2.getNode("10.4.20.4").getMeasuredResponse());
+			bind.put("10.4.20.5", baseline2.getNode("10.4.20.5").getMeasuredResponse());
+			contender.add(app.getNode("10.4.20.1"));
+			DiscreteProbDensity bsim2 = app.getContendedProcessingSim(app.getNode("10.4.20.2"), contender, baseline2.getEntryNode().getInterarrival());
+			DiscreteProbDensity bguess2 = bsim2.tconv(app.getNode("10.4.20.2").subsystem(bind));
+			result.put("Contended B2", bguess2);
+			log.info("B2:{} {}",bguess2.percentile(90), bguess2.percentile(95));
+			
+			//baseline compare
+			Map<String, DiscreteProbDensity> baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.35812541317837E12, 1358135491396.193);
+			DiscreteProbDensity actualB1 = baseline.get("10.4.20.1");
+			result.put("Actual contendB1",actualB1);
+			log.info("Measure B1:{} {}",actualB1.percentile(90), actualB1.percentile(95));
+			
+			baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.358122651383813E12, 1.358125413177958E12); 
+			DiscreteProbDensity actualB2 = baseline.get("10.4.20.1");
+			result.put("Actual contendB2",actualB2);
+			log.info("Measure B2:{} {}",actualB2.percentile(90), actualB2.percentile(95));
+			
+			/*
+			result.put("Actual contendC1",baseline.get("10.4.20.1"));
+			baseline = dependencyTool.collectResponse("10.4.20.3", 80, 1.358122651383813E12, 1.358125413177958E12); 
+			result.put("Actual contendC2",baseline.get("10.4.20.1"));
+			*/
+			
+			/*
+			
 			
 			Map<String, DiscreteProbDensity> lag = dependencyTool.collectLag("10.4.20.1", 80, startTime, stopTime);
 			result.put("lag B", lag.get("10.4.20.2"));
@@ -55,6 +130,7 @@ public class PlacementHandler {
 			ComponentNode main = factory.getBean(ComponentNode.class).host("10.4.20.1").port(80);
 			main.findModel(startTime, stopTime);
 			result.put("A", main.getMeasuredResponse());
+			result.put("proc A", main.getProcessingTime());
 			result.put("A interarrival", main.getInterarrival());
 			
 			ComponentNode subB = factory.getBean(ComponentNode.class).host("10.4.20.2").port(80);
@@ -67,16 +143,6 @@ public class PlacementHandler {
 			DiscreteProbDensity bproc = subB.getProcessingTime();
 			result.put("Process B", bproc);
 			//result.put("Contend B0", ModelTool.findContendedProcessingIndependent(1000, 0, bs).tconv(sub.subsystem(respB)));
-
-			/* baseline compare */
-			Map<String, DiscreteProbDensity> baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.35812541317837E12, 1358135491396.193); 
-			result.put("Actual contendB1",baseline.get("10.4.20.1"));
-			baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.358122651383813E12, 1.358125413177958E12); 
-			result.put("Actual contendB2",baseline.get("10.4.20.1"));
-			baseline = dependencyTool.collectResponse("10.4.20.3", 80, 1.35812541317837E12, 1358135491396.193); 
-			result.put("Actual contendC1",baseline.get("10.4.20.1"));
-			baseline = dependencyTool.collectResponse("10.4.20.3", 80, 1.358122651383813E12, 1.358125413177958E12); 
-			result.put("Actual contendC2",baseline.get("10.4.20.1"));
 			
 			ComponentNode subC = factory.getBean(ComponentNode.class).host("10.4.20.3").port(80);
 			Map<String, DiscreteProbDensity> respC = subC.findModel(startTime, stopTime);
@@ -94,6 +160,16 @@ public class PlacementHandler {
 					main.getInterarrival());
 			result.put("Guess C", contendMixC.tconv(subC.subsystem(respC)));
 			
+
+			DiscreteProbDensity contendMixB2 =
+					ModelTool.contendedProcessingSim(lag.get("10.4.20.2"), main.getProcessingTime(), contendMixB, main.getProcessingTime(),
+					main.getInterarrival());
+			result.put("Guess ABC", contendMixB2.tconv(subB.subsystem(respB)));
+			
+			DiscreteProbDensity contendMixB3 =
+					ModelTool.alternateProcessingSim(main, lag, subB.getProcessingTime(), subC.getProcessingTime(), main.getInterarrival()); 
+			result.put("Guess B3", contendMixB2.tconv(subB.subsystem(respB)));
+			*/
 			//result.put("Contend B1", ModelTool.findContendedProcessingIndependent(1000, 1, bs));
 			//result.put("Contend B2", ModelTool.findContendedProcessingIndependent(1000, 2, bs));
 			//result.put("Contend B3", ModelTool.findContendedProcessingIndependent(1000, 3, bs));
@@ -121,6 +197,14 @@ public class PlacementHandler {
 			*/
 			
 			PrettyPrinter.printJSON(req, result.entrySet());
+			/*
+			Expression path = app.pickPath();
+			log.info("Pick random path:"+path.print(new StringBuilder()).toString());
+			for (String node : app.getNodes().keySet()) {
+				log.info("Containing {}:{}",node, path.contain(node));	
+			}
+			*/
+			
 			req.response.end();
 		}
 	}

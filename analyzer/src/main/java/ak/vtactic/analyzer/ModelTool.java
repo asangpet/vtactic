@@ -1,10 +1,15 @@
 package ak.vtactic.analyzer;
 
+import java.util.Map;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import ak.vtactic.math.DiscreteProbDensity;
+import ak.vtactic.primitives.ComponentNode;
+import ak.vtactic.primitives.Distributed;
+import ak.vtactic.primitives.Expression;
 
 @Service
 public class ModelTool {
@@ -204,13 +209,23 @@ public class ModelTool {
 		return xPdf;		
 	}
 	
+	/**
+	 * Monte carlo simulator to estimate the pdf of contended processing time
+	 * 
+	 * @param TbPdf The node lag pdf
+	 * @param TcPdf The competing node lag pdf
+	 * @param PbPdf The node processing time pdf
+	 * @param PcPdf The competing node processing time pdf
+	 * @param iPdf The inter-arrival time of the request
+	 * @return The contended processing time pdf for the node
+	 */
 	public static DiscreteProbDensity contendedProcessingSim(
 			DiscreteProbDensity TbPdf, DiscreteProbDensity TcPdf,
 			DiscreteProbDensity PbPdf, DiscreteProbDensity PcPdf,
 			DiscreteProbDensity iPdf) {
-		
 		DiscreteProbDensity xPdf = new DiscreteProbDensity();
 
+		// max number of sampling points
 		int max = 1000000;
 		int tb,tc,pb,pc,d,arrival;
 		for (int i = 0; i < max; i++) {
@@ -219,6 +234,9 @@ public class ModelTool {
 			pb = PbPdf.random();
 			pc = PcPdf.random();
 			
+			// get next request arrival time,
+			// if it falls with in this request processing period,
+			// then consider how much processing time should be scaled
 			arrival = iPdf.random();
 			if (arrival > pb) {
 				xPdf.add(pb);
@@ -252,4 +270,88 @@ public class ModelTool {
 
 		return xPdf.normalize();
 	}	
+
+	public static DiscreteProbDensity alternateProcessingSim(ComponentNode topModel,
+			Map<String, DiscreteProbDensity> lags,
+			DiscreteProbDensity PbPdf, DiscreteProbDensity PcPdf,
+			DiscreteProbDensity iPdf) {
+		DiscreteProbDensity xPdf = new DiscreteProbDensity();
+		Distributed exp = (Distributed)topModel.getExpression();
+		
+		DiscreteProbDensity TbPdf = lags.get("10.4.20.2");
+		DiscreteProbDensity TcPdf = lags.get("10.4.20.3");
+		
+		// max number of sampling points
+		int max = 1000000;
+		int tb,tc,pb,pc,d,arrival;
+		for (int i = 0; i < max; i++) {
+			Expression term = exp.random();
+			if (!term.contain("B")) {
+				continue;
+			}
+			
+			// this term
+			// find internal contention
+			pb = PbPdf.random();
+			tb = TbPdf.random();
+			if (term.contain("C")) {			
+				tc = TbPdf.random();
+				pc = PbPdf.random();
+				// add contention
+				pb = adjust(pb,pc,tb,tc);
+			}
+			
+			// next term
+			term = exp.random();			
+			// get next request arrival time,
+			// if it falls with in this request processing period,
+			// then consider how much processing time should be scaled
+			arrival = iPdf.random();
+			if (arrival > pb) {
+				xPdf.add(pb);
+				continue;
+			}
+			if (term.contain("B")) {
+				tc = TbPdf.random();
+				pc = PbPdf.random();
+				// add B contention
+				pb = adjust(pb,pc,tb,tc);
+			}
+			if (term.contain("C")) {
+				tc = TcPdf.random();
+				pc = PcPdf.random();
+				// add C contention
+				pb = adjust(pb,pc,tb,tc);
+			}
+			xPdf.add(pb);
+		}
+		log.info("Total count {} {}",xPdf.count(),xPdf.getPdf()[xPdf.getPdf().length-1]);
+
+		return xPdf.normalize();
+	}	
+
+	private static int adjust(int pb, int pc, int tb, int tc) {
+		int d = tc-tb;
+		if (d >= 0) {
+			if (d >= pb) {
+				return pb;
+			} else {
+				if (d >= pb-pc) {
+					return pb+pc-d;
+				} else {
+					return pb+pc;
+				}
+			}
+		} else {
+			if (d < -pc) {
+				return pb;
+			} else {
+				if (d >= pb-pc) {
+					return (pb+pc);
+				} else {
+					return (d+pb+pc);
+				}
+			}
+		}				
+	}
 }

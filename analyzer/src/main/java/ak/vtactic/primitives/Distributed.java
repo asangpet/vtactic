@@ -13,6 +13,9 @@ public class Distributed implements Expression {
 
 	@Override
 	public DiscreteProbDensity eval(Map<String, DiscreteProbDensity> bind) {
+		if (terms.isEmpty()) {
+			return null;
+		}
 		double[] prob = new double[terms.size()];
 		DiscreteProbDensity[] pdfs = new DiscreteProbDensity[terms.size()];
 		
@@ -89,5 +92,31 @@ public class Distributed implements Expression {
 			}
 		}
 		return builder;
+	}
+	
+	public Expression random() {
+		double rand = Math.random();
+		double sum = 0;
+		for (Pair<Expression, Double> term : terms) {
+			sum += term.second;
+			if (sum >= rand) {
+				return term.first;
+			}
+		}
+		return terms.last().first;
+	}
+	
+	@Override
+	public boolean contain(String operand) {
+		for (Pair<Expression, Double> term : terms) {
+			if (term.first.contain(operand)) {
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	public boolean isEmpty() {
+		return terms.isEmpty();
 	}
 }

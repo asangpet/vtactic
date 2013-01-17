@@ -22,6 +22,7 @@ public class Operand implements Expression {
 	
 	private String translate(String operand) {
 		switch (operand) {
+		case "10.4.20.1":return "A";
 		case "10.4.20.2":return "B";
 		case "10.4.20.3":return "C";
 		case "10.4.20.4":return "D";
@@ -41,5 +42,10 @@ public class Operand implements Expression {
 	@Override
 	public String toString() {
 		return translate(operand);
+	}
+	
+	@Override
+	public boolean contain(String operand) {
+		return this.operand.equals(operand) || translate(this.operand).equals(operand);
 	}
 }
