@@ -1,5 +1,6 @@
 package ak.vtactic.math;
 
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -18,6 +19,7 @@ public class DiscreteProbDensity {
 	int numSlots;
 	Long rawCount = Long.valueOf(0L);
 	double[] raw = null;
+	ArrayList<Double> series = new ArrayList<Double>(20000);
 
 	public DiscreteProbDensity() {
 		this(ModelConfig.slots,0,ModelConfig.maxTime,ModelConfig.offset);
@@ -48,7 +50,13 @@ public class DiscreteProbDensity {
 		if (slot >= pdf.length || slot < 0) slot = pdf.length-1;
 		pdf[slot]++;
 		rawCount++;
+		series.add(value);
 	}
+	
+	public ArrayList<Double> getSeries() {
+		return series;
+	}
+	
 	public void convert(double[] value) {
 		for (int i=0;i<value.length;i++) {
 			int slot = (int)Math.round((value[i]-min) / interval);
@@ -402,6 +410,20 @@ public class DiscreteProbDensity {
 		//return numSlots * interval - offset;
 	}
 
+	public int percentileIndex(double percent) {
+		double sum = 0;
+		double target = percent/100;
+
+		for (int i=0;i<numSlots;i++) {
+			sum += pdf[i];
+			if (sum >= target) {
+				return i;
+			}
+		}
+		return numSlots-1;
+		//return numSlots * interval - offset;
+	}
+	
 	public void print() {
 		System.out.print("[");
 		for (int i=0;i<pdf.length;i++) {
@@ -429,6 +451,21 @@ public class DiscreteProbDensity {
 			if (i<pdf.length-2) {
 				buffer.append(",");
 			}
+		}
+		buffer.append("]");
+		return buffer;
+	}
+	
+	public StringBuffer printSeriesBuffer() {
+		StringBuffer buffer = new StringBuffer();
+		buffer.append("[");
+		int counter = 0;
+		for (Double value : series) {
+			if (counter > 0) {
+				buffer.append(",");
+			}
+			counter++;
+			buffer.append(value);
 		}
 		buffer.append("]");
 		return buffer;
@@ -712,7 +749,18 @@ public class DiscreteProbDensity {
 				builder.append("\nplot(iter_"+iter+");\n");
 			}
 		}
-		return result;
+		
+		// zero-fill the deconvolution, so we always have a normalized result
+		/*
+		double sum = 0;
+		for (double k:result.pdf) {
+			sum+=k;
+		}
+		if (sum < 1.0) {
+			result.pdf[0] += 1.0-sum;
+		}
+		*/
+		return result;//.normalize();
 	}
 	
 	public DiscreteProbDensity normalDist(double mean, double std) {
@@ -721,6 +769,38 @@ public class DiscreteProbDensity {
 		for (int i=0;i<result.pdf.length;i++) {
 			x = i*interval;
 			result.pdf[i] = Math.exp(-(x-mean)*(x-mean)/(2*std*std))/(std*Math.sqrt(2.0*Math.PI));
+		}
+		return result;
+	}
+	
+	public DiscreteProbDensity getUpperDistribution(double lowerbound) {
+		DiscreteProbDensity result = new DiscreteProbDensity(this);
+		int start = percentileIndex(lowerbound * 100);
+		for (int i = 0; i<start;i++) {
+			result.pdf[i] = 0;
+		}
+		double sum = 0.0;
+		for (int i = start; i < result.pdf.length; i++) {
+			sum += result.pdf[i];
+		}
+		for (int i = start; i < result.pdf.length; i++) {
+			result.pdf[i] = result.pdf[i] / sum;
+		}
+		return result;
+	}
+	
+	public DiscreteProbDensity getLowerDistribution(double upperbound) {
+		DiscreteProbDensity result = new DiscreteProbDensity(this);
+		int start = percentileIndex(upperbound * 100);
+		for (int i = start; i<result.pdf.length;i++) {
+			result.pdf[i] = 0;
+		}
+		double sum = 0.0;
+		for (int i = 0; i < start; i++) {
+			sum += result.pdf[i];
+		}
+		for (int i = 0; i < start; i++) {
+			result.pdf[i] = result.pdf[i] / sum;
 		}
 		return result;
 	}
@@ -843,6 +923,17 @@ public class DiscreteProbDensity {
 		}
 		return result;
 	}
+	
+	/**
+	 * Dirac delta dpf, peak at index, DO NOT USE THIS TO CONVOLVE WITH ANYTHING
+	 * @param index
+	 * @return
+	 */
+	public static DiscreteProbDensity deltaPdf(int index) {
+		DiscreteProbDensity result = new DiscreteProbDensity();
+		result.getPdf()[index] = 1.0;
+		return result;
+	}	
 	
 	public static double poisson(double k, double lambda) {
 		double result = Math.exp(-lambda);

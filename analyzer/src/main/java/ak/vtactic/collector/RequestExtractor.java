@@ -271,9 +271,14 @@ public class RequestExtractor {
 		interarrival = interarrival.normalize();
 
 		Distributed expression = new Distributed();
+		double termsWeight = 0;
 		for (Map.Entry<String, Integer> term : termCounts.entrySet()) {
-			logger.info("{} - {}", term.getKey(), term.getValue());
-			expression.addTerm(termExpressions.get(term.getKey()), 1.0*term.getValue().doubleValue()/sum);
+			double termWeight = (1.0 * term.getValue()) / sum;
+			logger.info("{} - {} - {} - {}", new Object[] { term.getKey(), term.getValue(), termWeight, requestCount });
+			expression.addTerm(termExpressions.get(term.getKey()), termWeight);
+		}
+		if (termsWeight < 1) {
+			expression.setIndependentWeight(1.0 - (((double)sum) / requestCount));
 		}
 		return expression;
 	}

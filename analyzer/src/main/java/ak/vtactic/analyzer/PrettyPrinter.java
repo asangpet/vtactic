@@ -87,4 +87,21 @@ public class PrettyPrinter {
 		req.response.write("}");
 		log.debug("Response generation completed");
 	}
+	
+	public static void printJSONSeries(HttpServerRequest req, Collection<Map.Entry<String, DiscreteProbDensity>> entries) {
+		req.response.write("{");
+		int count = 0;
+		for (Map.Entry<String, DiscreteProbDensity> entry : entries) {
+			log.debug("Pretty printing JSON component {}", entry.getKey());
+			String name = entry.getKey();
+			req.response.write(String.format("\"%s\":",name));			
+			req.response.write(entry.getValue().printSeriesBuffer().toString());
+			count++;
+			if (count < entries.size()) {
+				req.response.write(",");
+			}
+		}
+		req.response.write("}");
+		log.debug("Response generation completed");
+	}	
 }

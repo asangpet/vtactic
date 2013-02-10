@@ -21,8 +21,8 @@ public class DependencyTool {
 	
 	@Autowired
 	DataService dataService;
-	
-	public Map<String, DiscreteProbDensity> collectResponse(String node, int basePort, double start, double stop) {
+
+	public ResponseCollector collectRawResponse(String node, int basePort, double start, double stop) {
 		Iterable<NodeEventInfo> events = dataService.getMatchedNodeEvents(node, basePort, start, stop);
 		ResponseCollector collector = new ResponseCollector();
 		int count = 0;
@@ -34,7 +34,12 @@ public class DependencyTool {
 				collector.collect(event, basePort);
 			//}
 		}
-		
+		return collector;
+	}
+	
+	public Map<String, DiscreteProbDensity> collectResponse(String node, int basePort, double start, double stop) {
+		ResponseCollector collector = collectRawResponse(node, basePort, start, stop); 
+				
 		// normalized results
 		Map<String, DiscreteProbDensity> normalized = new TreeMap<>();
 		for (Map.Entry<String, DiscreteProbDensity> density : collector.getNodeResponse().entrySet()) {

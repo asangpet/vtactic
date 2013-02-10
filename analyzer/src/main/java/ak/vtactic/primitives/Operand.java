@@ -2,9 +2,13 @@ package ak.vtactic.primitives;
 
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import ak.vtactic.math.DiscreteProbDensity;
 
 public class Operand implements Expression {
+	Logger log = LoggerFactory.getLogger(Operand.class);
 	String operand;
 	
 	public Operand(String operand) {
@@ -20,22 +24,21 @@ public class Operand implements Expression {
 		return builder.append(translate(operand));
 	}
 	
+	@Override
+	public StringBuilder print() {
+		return print(new StringBuilder());
+	}
+	
 	private String translate(String operand) {
-		switch (operand) {
-		case "10.4.20.1":return "A";
-		case "10.4.20.2":return "B";
-		case "10.4.20.3":return "C";
-		case "10.4.20.4":return "D";
-		case "10.4.20.5":return "E";
-		case "10.4.20.6":return "F";
-		case "10.4.20.7":return "G";
-		}
-		return operand;
+		return Translator.translate(operand);
 	}
 	
 	@Override
 	public DiscreteProbDensity eval(
 			Map<String, DiscreteProbDensity> bind) {
+		if (bind.get(operand) == null) {
+			log.error("Null operand found {}, need to supply response binding",operand);
+		}
 		return bind.get(operand);
 	}
 	

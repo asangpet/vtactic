@@ -14,6 +14,11 @@ public abstract class BinaryOperator implements Expression {
 		return this;
 	}
 	
+	@Override
+	public StringBuilder print() {
+		return print(new StringBuilder());
+	}
+	
 	public Expression getLeft() {
 		return left;
 	}

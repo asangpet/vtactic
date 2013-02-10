@@ -7,3 +7,15 @@
     	
         <div id="pdfContainer" style="width: 960px; height: 600px; margin: 0 auto">PDF</div>
         <div id="cdfContainer" style="width: 960px; height: 600px; margin: 0 auto">CDF</div>        
+
+		<h2>PDF</h2>
+        <div ng-repeat="data in plotPdfData">
+        	<div ngModel="data.name">{{data.name}}</div>
+        	<textarea ngModel="data.data" cols="100" rows="10">{{data.data}}</textarea>
+        </div>
+        
+        <h2>CDF</h2>
+        <div ng-repeat="data in plotCdfData">
+        	<div ngModel="data.name">{{data.name}}</div>
+        	<textarea ngModel="data.data" cols="100" rows="10">{{data.data}}</textarea>
+        </div>

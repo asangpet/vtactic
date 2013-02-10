@@ -33,7 +33,7 @@ public class Associations implements Comparable<Associations> {
 	Map<SocketInfo, NodeEventInfo> replies = new HashMap<>();
 	
 	// How likely that this association is correct
-	int weight = 1;
+	private int weight = 1;
 	
 	public Associations(NodeEventInfo ev) {
 		this.requestTime = ev.getTimestamp();

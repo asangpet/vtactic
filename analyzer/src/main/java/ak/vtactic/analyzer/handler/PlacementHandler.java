@@ -20,6 +20,8 @@ import ak.vtactic.analyzer.DependencyTool;
 import ak.vtactic.analyzer.ModelTool;
 import ak.vtactic.analyzer.PrettyPrinter;
 import ak.vtactic.collector.ResponseCollector;
+import ak.vtactic.engine.PlacementEngine;
+import ak.vtactic.engine.PlacementResult;
 import ak.vtactic.math.DiscreteProbDensity;
 import ak.vtactic.primitives.ComponentNode;
 import ak.vtactic.primitives.ModelApplication;
@@ -37,13 +39,100 @@ public class PlacementHandler {
 	@Autowired
 	BeanFactory factory;
 	
+	class EngineHandler implements Handler<HttpServerRequest> {
+		double startTime;
+		double stopTime;
+		
+		public EngineHandler(double start, double stop) {
+			startTime = start;
+			stopTime = stop;			
+		}
+		
+		@Override
+		public void handle(HttpServerRequest req) {
+			req.response.setChunked(true);
+			
+			ModelApplication app = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, startTime, stopTime);
+			
+			PlacementEngine engine = new PlacementEngine(app, 3);
+			Map<String, DiscreteProbDensity> result = engine.evaluate();
+			
+			PlacementResult placementResult = engine.place(engine.usePercentile(90));
+			result.put("Best", placementResult.getResult().get(app.getEntryNode().getHost()));
+			
+			/*
+			Map<String, DiscreteProbDensity> r2 = engine.randomAssign().impact();
+			for (String key:r2.keySet()) {
+				result.put("alt_"+key, r2.get(key));
+			}
+			*/
+			
+			ModelApplication baseline2 = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, 1.358122651383813E12, 1.358125413177958E12);
+
+			ModelApplication best = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, 1.358625956855718E12, 1.358718372775114E12);
+			
+			result.put("Resp1", baseline2.getNode("10.4.20.1").getMeasuredResponse());
+			
+			result.put("BestResp1", best.getNode("10.4.20.1").getMeasuredResponse());
+			//result.put("Resp2", baseline2.getNode("10.4.20.2").getMeasuredResponse());
+			//result.put("Resp7", baseline2.getNode("10.4.20.7").getMeasuredResponse());
+			
+			PrettyPrinter.printJSON(req, result.entrySet());
+			req.response.end();
+			
+			log.info("Placement: {}",placementResult.getPlacement().toString());
+		}		
+	}
+	
+	class GreedyEngineHandler implements Handler<HttpServerRequest> {
+		double startTime;
+		double stopTime;
+		
+		public GreedyEngineHandler(double start, double stop) {
+			startTime = start;
+			stopTime = stop;			
+		}
+		
+		@Override
+		public void handle(HttpServerRequest req) {
+			req.response.setChunked(true);
+			
+			ModelApplication app = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, startTime, stopTime);
+			
+			PlacementEngine engine = new PlacementEngine(app, 3);
+			Map<String, DiscreteProbDensity> result = engine.evaluate();
+			
+			PlacementResult placementResult = engine.placeGreedy(engine.usePercentile(90));
+			result.put("Best", placementResult.getResult().get(app.getEntryNode().getHost()));
+			
+			ModelApplication baseline2 = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, 1.358122651383813E12, 1.358125413177958E12);
+
+			ModelApplication best = factory.getBean(ModelApplication.class)
+					.build("10.4.20.1", 80, 1.358625956855718E12, 1.358718372775114E12);
+			
+			result.put("Resp1", baseline2.getNode("10.4.20.1").getMeasuredResponse());
+			
+			result.put("BestResp1", best.getNode("10.4.20.1").getMeasuredResponse());
+			
+			PrettyPrinter.printJSON(req, result.entrySet());
+			req.response.end();
+			
+			log.info("Placement: {}",placementResult.getPlacement().toString());
+		}		
+	}
+	
 	class ProcessModelHandler implements Handler<HttpServerRequest> {
 		double startTime;
 		double stopTime;
 		
 		public ProcessModelHandler(double start, double stop) {
 			startTime = start;
-			stopTime = stop;
+			stopTime = stop;			
 		}
 		
 		private String translate(String host) {
@@ -73,6 +162,9 @@ public class PlacementHandler {
 					.build("10.4.20.1", 80, 1.358122651383813E12, 1.358125413177958E12);
 			
 			Map<String, DiscreteProbDensity> result = new TreeMap<String, DiscreteProbDensity>();
+			Map<String, DiscreteProbDensity> bind = new HashMap<String, DiscreteProbDensity>();
+			Set<ComponentNode> contender = new HashSet<ComponentNode>();
+			
 			/*
 			for (Map.Entry<String, ComponentNode> node : app.getNodes().entrySet()) {
 				result.put("Processing "+translate(node.getKey()), node.getValue().getProcessingTime());
@@ -83,36 +175,79 @@ public class PlacementHandler {
 			}
 			 */
 			
-			Set<ComponentNode> contender = new HashSet<ComponentNode>();
+			/*			
 			contender.add(app.getNode("10.4.20.3"));
-
-			Map<String, DiscreteProbDensity> bind = new HashMap<String, DiscreteProbDensity>();
+			
 			bind.put("10.4.20.4", baseline1.getNode("10.4.20.4").getMeasuredResponse());
 			bind.put("10.4.20.5", baseline1.getNode("10.4.20.5").getMeasuredResponse());
-			
+						
 			DiscreteProbDensity bsim = app.getContendedProcessingSim(app.getNode("10.4.20.2"), contender, baseline1.getEntryNode().getInterarrival());
 			DiscreteProbDensity bguess = bsim.tconv(app.getNode("10.4.20.2").subsystem(bind));
 			result.put("Contended B1", bguess);
 			log.info("B1:{} {}",bguess.percentile(90), bguess.percentile(95));
+			*/
 			
-			bind.put("10.4.20.4", baseline2.getNode("10.4.20.4").getMeasuredResponse());
-			bind.put("10.4.20.5", baseline2.getNode("10.4.20.5").getMeasuredResponse());
-			contender.add(app.getNode("10.4.20.1"));
-			DiscreteProbDensity bsim2 = app.getContendedProcessingSim(app.getNode("10.4.20.2"), contender, baseline2.getEntryNode().getInterarrival());
-			DiscreteProbDensity bguess2 = bsim2.tconv(app.getNode("10.4.20.2").subsystem(bind));
+			/****Test placement, ABC + D|E + F|G ********************************/
+			ComponentNode nodeA = app.getNode("10.4.20.1");
+			ComponentNode nodeB = app.getNode("10.4.20.2");
+			ComponentNode nodeC = app.getNode("10.4.20.3");
+			ComponentNode nodeD = app.getNode("10.4.20.4");
+			ComponentNode nodeE = app.getNode("10.4.20.5");
+			ComponentNode nodeF = app.getNode("10.4.20.6");
+			ComponentNode nodeG = app.getNode("10.4.20.7");
+			
+			bind.put("10.4.20.4", nodeD.getMeasuredResponse());
+			bind.put("10.4.20.5", nodeE.getMeasuredResponse());
+			contender.clear();
+			contender.add(nodeA);
+			contender.add(nodeC);
+			DiscreteProbDensity bsim2 = app.getContendedProcessingSim(nodeB, contender, baseline2.getEntryNode().getInterarrival());
+			DiscreteProbDensity bguess2 = bsim2.tconv(nodeB.subsystem(bind));
 			result.put("Contended B2", bguess2);
 			log.info("B2:{} {}",bguess2.percentile(90), bguess2.percentile(95));
 			
-			//baseline compare
+			contender.clear();
+			contender.add(nodeA);
+			contender.add(nodeB);
+			bind.put("10.4.20.6", nodeF.getMeasuredResponse());
+			bind.put("10.4.20.7", nodeG.getMeasuredResponse());
+			DiscreteProbDensity csim2 = app.getContendedProcessingSim(nodeC, contender, baseline2.getEntryNode().getInterarrival());
+			DiscreteProbDensity cguess2 = csim2.tconv(nodeC.subsystem(bind));
+			result.put("Contended C2", cguess2);
+			log.info("C2:{} {}",cguess2.percentile(90), cguess2.percentile(95));
+			
+			contender.clear();
+			contender.add(nodeB);
+			contender.add(nodeC);
+			bind.put("10.4.20.2", bguess2);
+			bind.put("10.4.20.3", cguess2);
+			DiscreteProbDensity asim2 = app.getContendedProcessingSim(nodeA, contender, baseline2.getEntryNode().getInterarrival());
+			result.put("Contended A2 proc", asim2);
+			DiscreteProbDensity aguess2 = (nodeA.subsystem(bind)).tconv(asim2);
+			result.put("Contended A2", aguess2);
+			log.info("A2:{} {}",aguess2.percentile(90), aguess2.percentile(95));
+			
+			
+			//baseline comparisons
+			/*
 			Map<String, DiscreteProbDensity> baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.35812541317837E12, 1358135491396.193);
 			DiscreteProbDensity actualB1 = baseline.get("10.4.20.1");
 			result.put("Actual contendB1",actualB1);
 			log.info("Measure B1:{} {}",actualB1.percentile(90), actualB1.percentile(95));
-			
-			baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.358122651383813E12, 1.358125413177958E12); 
-			DiscreteProbDensity actualB2 = baseline.get("10.4.20.1");
+			*/
+
+			//baseline = dependencyTool.collectResponse("10.4.20.2", 80, 1.358122651383813E12, 1.358125413177958E12); 
+			DiscreteProbDensity actualB2 = baseline2.getNode("10.4.20.2").getMeasuredResponse();
 			result.put("Actual contendB2",actualB2);
 			log.info("Measure B2:{} {}",actualB2.percentile(90), actualB2.percentile(95));
+			
+			DiscreteProbDensity actualC2 = baseline2.getNode("10.4.20.3").getMeasuredResponse();
+			result.put("Actual contendC2",actualC2);
+			log.info("Measure C2:{} {}",actualC2.percentile(90), actualC2.percentile(95));
+			
+			DiscreteProbDensity actualA2 = baseline2.getEntryNode().getMeasuredResponse();
+			result.put("Actual contendA2",actualA2);
+			log.info("Measure A2:{} {}",actualA2.percentile(90), actualA2.percentile(95));
 			
 			/*
 			result.put("Actual contendC1",baseline.get("10.4.20.1"));
@@ -210,10 +345,16 @@ public class PlacementHandler {
 	}
 	
 	public void bind(RouteMatcher routeMatcher) {
+		routeMatcher.all("/analyze/greedyengine", 
+				new GreedyEngineHandler(1.358120526491732E12, 1.358122651383419E12));
+		
+		routeMatcher.all("/analyze/engine", 
+				new EngineHandler(1.358120526491732E12, 1.358122651383419E12));
+		
 		// round-robin request from A, placement a-bc/df/eg (a+bc on same hosts (diff cpu). df eg = nopin)
 		// 3M cycle processing time on A
 		routeMatcher.all("/analyze/placement-rr-pin-a-bc-proc-a-3M", 
-				new ProcessModelHandler(1.35812541317837E12, Double.MAX_VALUE));
+				new ProcessModelHandler(1.35812541317837E12, 1.358625956849702E12));
 		
 		// round-robin request from A, placement abc/df/eg (abc pin on same cpus. df eg = nopin)
 		// 3M cycle processing time on A

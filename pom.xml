@@ -70,6 +70,7 @@
 	<modules>
 		<module>analyzer</module>
 		<module>datamodel</module>
+		<module>gexf4j</module>
 	</modules>
   
 </project>

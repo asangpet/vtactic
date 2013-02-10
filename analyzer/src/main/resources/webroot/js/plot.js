@@ -1,5 +1,7 @@
 function PlotCtrl($scope, $routeParams, $http) {
   $scope.plotUrl = $routeParams.plotUrl;
+  $scope.plotPdfData = [];
+  $scope.plotCdfData = [];
   $scope.status = "Click 'plot' to load data";
 
   $scope.fetch = function() {
@@ -15,7 +17,7 @@ function PlotCtrl($scope, $routeParams, $http) {
     		credits:{enabled:false},
             chart: {
                 renderTo: 'pdfContainer',
-                zoomType: 'xy',
+                zoomType: 'xy'
             },
             legend: {
             	layout: 'vertical',
@@ -77,6 +79,9 @@ function PlotCtrl($scope, $routeParams, $http) {
         	}
         	cseries = {id:name, name:name, data:cdfs};
         	cdfChart.addSeries(cseries);
+
+        	$scope.plotPdfData.push(series);
+        	$scope.plotCdfData.push(cseries);
     	});
     });
   	

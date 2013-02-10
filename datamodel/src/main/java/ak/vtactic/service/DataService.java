@@ -24,6 +24,7 @@ public class DataService {
 	MongoCollection markerCollection;
 	MongoCollection eventCollection;
 	MongoCollection utilizationCollection;
+	MongoCollection utilCpuCollection;
 	
 	static final String modelCollection = "model";
 	static final String coarrivalCollection = "coarrival";
@@ -42,6 +43,7 @@ public class DataService {
 		markerCollection = jongo.getCollection("markers");
 		
 		utilizationCollection = new Jongo(mongo.getDB("collectd")).getCollection("libvirt");
+		utilCpuCollection = new Jongo(mongo.getDB("collectd")).getCollection("cpu");
 		//getModelCollection().ensureIndex("{name:1}");
 	}
 	
@@ -59,6 +61,10 @@ public class DataService {
 	
 	public MongoCollection utilizations() {
 		return utilizationCollection;
+	}
+	
+	public MongoCollection getUtilCpuCollection() {
+		return utilCpuCollection;
 	}
 	
 	public MongoCollection events(String collection) {

@@ -1,7 +1,14 @@
 package ak.vtactic.primitives;
 
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -13,14 +20,20 @@ import org.springframework.context.annotation.Scope;
 import org.springframework.stereotype.Component;
 
 import ak.vtactic.analyzer.DependencyTool;
+import ak.vtactic.engine.HostAssignment;
 import ak.vtactic.math.DiscreteProbDensity;
+
+import com.google.common.base.Function;
+import com.google.common.collect.BiMap;
+import com.google.common.collect.FluentIterable;
+import com.google.common.collect.HashBiMap;
 
 @Component
 @Scope("prototype")
 public class ModelApplication {
 	private static final Logger log = LoggerFactory.getLogger(ModelApplication.class);
 	
-	Map<String, ComponentNode> nodes;
+	BiMap<String, ComponentNode> nodes;
 	Map<String, DiscreteProbDensity> lags;
 	
 	ComponentNode entryNode;
@@ -29,12 +42,32 @@ public class ModelApplication {
 	@Autowired BeanFactory factory;
 	
 	public ModelApplication build(String entryAddress, int entryPort, double startTime, double stopTime) {
-		nodes = new HashMap<String, ComponentNode>();
+		nodes = HashBiMap.create();
 		lags = new HashMap<String, DiscreteProbDensity>();
 		
 		entryNode = innerBuild(entryAddress, entryPort, startTime, stopTime, null);
 		for (Map.Entry<String, DiscreteProbDensity> lag : lags.entrySet()) {
 			nodes.get(lag.getKey()).lag = lag.getValue();
+		}
+		DiscreteProbDensity delta = DiscreteProbDensity.deltaPdf(0);
+		entryNode.lag = delta;
+		if (!lags.containsKey(entryNode.getHost())) {
+			lags.put(entryNode.getHost(), delta);
+		}
+		
+		// dump output
+		FluentIterable<String> expressionIterables = FluentIterable.from(nodes.entrySet())
+				.transform(new Function<Map.Entry<String,ComponentNode>, String>() {
+					@Override
+					public String apply(Map.Entry<String, ComponentNode> entry) {
+						return entry.getKey() + " = "+entry.getValue().getExpression().print(new StringBuilder()).toString();
+					}
+				});
+		Path path = FileSystems.getDefault().getPath(".", "app-"+entryAddress+".map");
+		try {
+			Files.write(path, expressionIterables, Charset.defaultCharset(), StandardOpenOption.CREATE);
+		} catch (IOException e) {
+			throw new RuntimeException(e);
 		}
 		
 		return this;
@@ -78,7 +111,7 @@ public class ModelApplication {
 		return entryNode;
 	}
 	
-	public Map<String, ComponentNode> getNodes() {
+	public BiMap<String, ComponentNode> getNodes() {
 		return nodes;
 	}
 	
@@ -127,30 +160,54 @@ public class ModelApplication {
 		return nodes;
 	}
 	
-	int stack = 0;
 	public DiscreteProbDensity getContendedProcessingSim(ComponentNode node, Set<ComponentNode> contenders,
 			DiscreteProbDensity interarrivalPdf) {
+		return getContendedProcessingSim(node, contenders, interarrivalPdf, node.getProcessingTime());
+	}	
+	
+	final int maxIterations = 100000;
+	boolean scaleStack = true;
+	//int maxPb = 0; // debugging only, used to monitor processing time
+	/**
+	 * This function calculate the contended processing time of the requests
+	 * Given the interarrival time, the processing time of the node.
+	 * 
+	 * It calculate the contended processing time based on the set of contenders
+	 * (using lag time to adjust the co-arrival of the node)
+	 * The lag time is used to estimate the co-arrival to indicate the contention.
+	 * 
+	 * The dependency is used from the function calling this one to properly combine the subsystem response time
+	 * with this contended processing time
+	 * 
+	 * @param node
+	 * @param contenders
+	 * @param interarrivalPdf
+	 * @param processingTime
+	 * @return
+	 */
+	public DiscreteProbDensity getContendedProcessingSim(ComponentNode node, Set<ComponentNode> contenders,
+			DiscreteProbDensity interarrivalPdf, DiscreteProbDensity processingTime) {
 		DiscreteProbDensity xPdf = new DiscreteProbDensity();
 		
-		DiscreteProbDensity PbPdf = node.getProcessingTime();
+		DiscreteProbDensity PbPdf = processingTime;
 		DiscreteProbDensity TbPdf = node.getLag();
 		
 		// max number of sampling points
-		int max = 100000;
 		int tb,tc,pb,pc,arrival;
 		
 		// stats
 		int selfArrival = 0;
 		int maxStack = 0;
+		int limit = xPdf.getPdf().length;
 		
 		Set<String> testNode = new HashSet<String>();
-		for (int i = 0; i < max; i++) {
+		for (int i = 0; i < maxIterations; i++) {
 			Expression term = pickPath();
 			if (!term.contain(node.getHost())) {
 				continue;
 			}
 
-			stack = 0;
+			int stack = 0;
 			// this term
 			// find internal contention
 			pb = PbPdf.random();
@@ -167,7 +224,7 @@ public class ModelApplication {
 					}
 					pc = cnode.getProcessingTime().random();
 					// add contention
-					pb = adjust(pb,pc,tb,tc);
+					pb = adjust(pb,pc,tb,tc,limit,stack++);
 				}
 			}
 			
@@ -179,9 +236,11 @@ public class ModelApplication {
 				// get next request arrival time,
 				// if it falls with in this request processing period,
 				// then consider how much processing time should be scaled
-				arrival += interarrivalPdf.random();
-				if (arrival > pb) {
+				int nextArrival = interarrivalPdf.random();
+				if (nextArrival > tb+pb || arrival > Integer.MAX_VALUE - nextArrival) {
 					break;
+				} else {
+					arrival += nextArrival;
 				}
 				testNode.clear();
 				testNode = getNodesFromTerm(testNode, term);
@@ -189,7 +248,7 @@ public class ModelApplication {
 					tc = arrival + TbPdf.random();
 					pc = PbPdf.random();
 					// add self contention
-					pb = adjust(pb,pc,tb,tc);
+					pb = adjust(pb,pc,tb,tc,limit,stack++);
 				}
 				for (ComponentNode cnode : contenders){
 					if (testNode.contains(cnode.getHost())) {
@@ -201,16 +260,18 @@ public class ModelApplication {
 						}
 						pc = cnode.getProcessingTime().random();
 						// add contention
-						pb = adjust(pb,pc,tb,tc);
+						pb = adjust(pb,pc,tb,tc,limit,stack++);
 					}
 				}
 				selfArrival++;
 			} while (arrival < pb);
-			
-			if (stack > maxStack) {
-				log.info("Adjusted pb {} stack {}", pb, stack);
-				maxStack = stack;
-			}
+		
+			/*
+			if (stack > maxStack || pb > maxPb) {				
+				log.info("Adjusted pb {} stack {} self-arrival {}", new Object[] { pb, stack, selfArrival });
+				if (stack > maxStack) maxStack = stack;
+				if (pb > maxPb) maxPb = pb;
+			}*/
 			
 			xPdf.add(pb);
 		}
@@ -218,38 +279,91 @@ public class ModelApplication {
 				new Object[] { xPdf.count(),selfArrival,maxStack });
 		
 		// trim ends
-		xPdf.getPdf()[xPdf.getPdf().length-1] = 0;
+		//xPdf.getPdf()[xPdf.getPdf().length-1] = 0;
 		return xPdf.normalize();
 	}	
 
-	private int adjust(int pb, int pc, int tb, int tc) {
-		// contention scale
-		int epsilon = stack * pc;
+	private int adjust(int pb, int pc, int tb, int tc, int limit, int stack) {
+		// contention scale on competing event
+		if (scaleStack) {
+			if (stack > 1) pc = pc * stack;
+		}
 		
 		int d = tc-tb;
 		if (d >= 0) {
 			if (d >= pb) {
 				return pb;
 			} else {
-				stack++;
 				if (d >= pb-pc) {
-					return pb+pc-d + epsilon;
+					if (pb - d < limit - pc) {
+						return pb+pc-d;
+					} else {
+						return limit;
+					}
 				} else {
-					return pb+pc + epsilon;
+					if (pb < limit - pc) {
+						return pb+pc;
+					} else {
+						return limit;
+					}
 				}
 			}
 		} else {
 			if (d < -pc) {
 				return pb;
 			} else {
-				stack++;
 				if (d >= pb-pc) {
-					return (pb+pc) + epsilon;
+					if (pb < limit - pc) {
+						return (pb+pc);
+					} else {
+						return limit;
+					}
 				} else {
-					return (d+pb+pc) + epsilon;
+					if (pb < limit - pc - d) {
+						return (d+pb+pc);
+					} else {
+						return limit;
+					}
 				}
 			}
 		}				
 	}
 
+	public void deepEval(ComponentNode node, Map<String, DiscreteProbDensity> bind, Map<String, DiscreteProbDensity> procMod, HostAssignment hosts) {
+		Set<String> deps = new HashSet<>(node.getDependencies().keySet());
+		Set<ComponentNode> contenders = new HashSet<ComponentNode>(hosts.getContenders(node));
+		
+		DiscreteProbDensity processing;
+		if (deps.isEmpty() && !bind.containsKey(node.getHost())) {
+			if (procMod.containsKey(node.getHost())) {
+				// contained modded processing
+				processing = getContendedProcessingSim(node,contenders,getEntryNode().getInterarrival(), procMod.get(node.getHost()));
+			} else {
+				processing = getContendedProcessingSim(node,contenders,getEntryNode().getInterarrival());
+			}
+			bind.put(node.getHost(), processing);
+		} else {			
+			Iterator<String> iter = deps.iterator();
+			while (iter.hasNext()) {
+				String addr = iter.next();
+				if (!bind.containsKey(addr)) {
+					ComponentNode depNode = getNode(addr);
+					deepEval(depNode, bind, procMod, hosts);
+				}
+			}
+			
+			// We now have all bindings for dependencies, find estimate for current node
+			
+			if (procMod.containsKey(node.getHost())) {
+				// contained modded processing
+				processing = getContendedProcessingSim(node,contenders,getEntryNode().getInterarrival(), procMod.get(node.getHost()));
+			} else {
+				processing = getContendedProcessingSim(node,contenders,getEntryNode().getInterarrival());
+			}
+			
+			bind.put(node.getHost(), node.estimate(bind, processing));			
+		}
+	}
+	
+	
 }

@@ -1,0 +1,19 @@
+{
+	"nodes":[
+		{"name":"a", "color":"black"},
+		{"name":"b", "color":"red"},
+		{"name":"c", "color":"green"},
+		{"name":"d", "color":"green"},
+		{"name":"e", "color":"green"},
+		{"name":"f", "color":"green"},
+		{"name":"g", "color":"green"}
+		],
+ 	"links":[
+ 		{"source":0, "target":1, "value":1},
+ 		{"source":0, "target":2, "value":1},
+ 		{"source":1, "target":3, "value":1},
+ 		{"source":1, "target":4, "value":1},
+ 		{"source":2, "target":5, "value":1},
+ 		{"source":2, "target":6, "value":1}
+ 		]
+}

@@ -25,7 +25,10 @@ import org.vertx.java.core.http.HttpServerRequest;
 import org.vertx.java.core.http.RouteMatcher;
 import org.vertx.java.core.json.JsonObject;
 
+import ak.vtactic.analyzer.handler.DistributedHandler;
+import ak.vtactic.analyzer.handler.MultiCoreHandler;
 import ak.vtactic.analyzer.handler.PlacementHandler;
+import ak.vtactic.analyzer.handler.SLAHandler;
 import ak.vtactic.collector.RequestExtractor;
 import ak.vtactic.config.AnalyzerConfig;
 import ak.vtactic.math.DiscreteProbDensity;
@@ -58,6 +61,9 @@ public class AnalyzerVert {
 	@Autowired MathService mathService;
 
 	@Autowired PlacementHandler placementHandler;
+	@Autowired DistributedHandler distHandler;
+	@Autowired SLAHandler slaHandler;
+	@Autowired MultiCoreHandler mcHandler;
 	
 	RouteMatcher routeMatcher;
 
@@ -101,6 +107,9 @@ public class AnalyzerVert {
     	analyzerTool.registerRoute(routeMatcher);
     	
     	placementHandler.bind(routeMatcher);
+    	distHandler.bind(routeMatcher);
+    	slaHandler.bind(routeMatcher);
+    	mcHandler.bind(routeMatcher);
     	
     	routeMatcher.all("/util", new Handler<HttpServerRequest>() {
     		private Date convert(String value) {
